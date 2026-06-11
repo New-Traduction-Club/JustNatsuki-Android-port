@@ -1,0 +1,34 @@
+<resources>
+    <color name="colorPrimary">#BB86FC</color>
+    <color name="colorOnPrimary">#3700B3</color>
+    <color name="colorPrimaryContainer">#311B92</color>
+    <color name="colorOnPrimaryContainer">#E1BEE7</color>
+
+    <color name="colorSecondary">#B39DDB</color>
+    <color name="colorOnSecondary">#1A0033</color>
+    <color name="colorSecondaryContainer">#4A148C</color>
+    <color name="colorOnSecondaryContainer">#E1BEE7</color>
+
+    <color name="colorBackground">#120D16</color>
+    <color name="colorOnBackground">#F3E5F5</color>
+    <color name="colorSurface">#1A131B</color>
+    <color name="colorOnSurface">#F3E5F5</color>
+    <color name="colorSurfaceVariant">#2D2235</color>
+    <color name="colorOnSurfaceVariant">#F3E5F5</color>
+    <color name="colorOutline">#7B6B8D</color>
+
+    <color name="colorTaskbarBackground">#2D2235</color>
+    <color name="colorTaskbarTint">#D1B2FF</color>
+    <color name="colorTaskbarButtonPressed">#BB86FC</color>
+
+    <color name="colorWindowBackground">#1A131B</color>
+    <color name="colorWindowHeaderBackground">#2D2235</color>
+    <color name="colorWindowContentBackground">#1A131B</color>
+    <color name="colorWindowFooter">#311B92</color>
+
+    <color name="colorCardBackground">#2D2235</color>
+    <color name="colorDivider">#3D3245</color>
+    <color name="colorTextPrimary">#F3E5F5</color>
+    <color name="colorTextSecondary">#B3A2B2</color>
+    <color name="colorIconTint">#D1B2FF</color>
+</resources>
