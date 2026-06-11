@@ -11,7 +11,7 @@ import java.util.zip.ZipFile
 
 object GameUpdateManager {
     private const val TAG = "GameUpdateManager"
-    private const val PACKAGES_JSON_URL = "https://raw.githubusercontent.com/New-Traduction-Club/JustYuri-Android-port/refs/heads/main/.utilityfiles/packages_list.json"
+    private const val PACKAGES_JSON_URL = "https://raw.githubusercontent.com/New-Traduction-Club/JustNatsuki-Android-port/refs/heads/main/.utilityfiles/packages_list.json"
     private const val UPDATE_TEMP_FILE = "update_temp.zip"
 
     fun fetchPackages(): List<PackageInfo> {
