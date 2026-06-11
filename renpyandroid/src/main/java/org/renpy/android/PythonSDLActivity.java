@@ -88,7 +88,15 @@ public class PythonSDLActivity extends SDLActivity {
 
     protected String[] getLibraries() {
         return new String[] {
-            "renpython",
+            "png16",
+            "SDL2",
+            "SDL2_image",
+            "SDL2_ttf",
+            "SDL2_gfx",
+            "SDL2_mixer",
+            "python2.7",
+            "pymodules",
+            "main",
         };
     }
 
@@ -123,7 +131,13 @@ public class PythonSDLActivity extends SDLActivity {
 
     @Override
     public void setContentView(View view) {
+        Log.v("python", "setContentView() called with view: " + view);
         mFrameLayout = new FrameLayout(this);
+        
+        // Ensure the FrameLayout doesn't steal focus from its children
+        mFrameLayout.setFocusable(false);
+        mFrameLayout.setFocusableInTouchMode(false);
+
         mFrameLayout.addView(view);
 
         mVbox = new LinearLayout(this);
@@ -146,10 +160,10 @@ public class PythonSDLActivity extends SDLActivity {
 
     // Overriding this makes SDL respect the orientation given in the Android
     // manifest.
-    @Override
-    public void setOrientationBis(int w, int h, boolean resizable, String hint) {
-        return;
-    }
+    // @Override
+    // public void setOrientationBis(int w, int h, boolean resizable, String hint) {
+    //     return;
+    // }
 
     // Code to unpack python and get things running ///////////////////////////
 
@@ -275,13 +289,27 @@ public class PythonSDLActivity extends SDLActivity {
             externalStorage = oldExternalStorage;
         }
 
+        File externalGameDir = new File(externalStorage, "game");
+        if (externalGameDir.exists() && externalGameDir.isDirectory()) {
+            path = externalStorage;
+        } else if (resourceManager.getString("public_version") != null) {
+            path = externalStorage;
+        } else {
+            path = getFilesDir();
+        }
+
         long unpackStart = System.currentTimeMillis();
         String privateVersion = resourceManager.getString("private_version");
         if (privateVersion != null) {
             unpackData("private", getFilesDir(), privateVersion);
         }
+        String publicVersion = resourceManager.getString("public_version");
+        if (publicVersion != null) {
+            unpackData("public", externalStorage, publicVersion);
+        }
         Log.v("python", "unpackData finished. Duration: " + (System.currentTimeMillis() - unpackStart) + "ms");
 
+        nativeSetEnv("ANDROID_ARGUMENT", path.getAbsolutePath());
         nativeSetEnv("ANDROID_PRIVATE", getFilesDir().getAbsolutePath());
         nativeSetEnv("ANDROID_MASBASE", getFilesDir().getAbsolutePath());
         nativeSetEnv("ANDROID_PUBLIC",  externalStorage.getAbsolutePath());
@@ -301,6 +329,15 @@ public class PythonSDLActivity extends SDLActivity {
 
         nativeSetEnv("ANDROID_APK", apkFilePath);
 
+        String expansionFile = getIntent().getStringExtra("expansionFile");
+        if (expansionFile != null) {
+            nativeSetEnv("ANDROID_EXPANSION", expansionFile);
+        }
+
+        nativeSetEnv("PYTHONOPTIMIZE", "2");
+        nativeSetEnv("PYTHONHOME", getFilesDir().getAbsolutePath());
+        nativeSetEnv("PYTHONPATH", path.getAbsolutePath() + ":" + getFilesDir().getAbsolutePath() + "/lib");
+
         Log.v("python", "Finished preparePython. Total Duration: " + (System.currentTimeMillis() - startTime) + "ms");
 
     };
@@ -308,73 +345,50 @@ public class PythonSDLActivity extends SDLActivity {
     // App lifecycle.
     public ImageView mPresplash = null;
 
-    Bitmap getBitmap(String assetName) {
-        try {
-            InputStream is = getAssets().open(assetName);
-            
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inPreferredConfig = Bitmap.Config.RGB_565;
-            
-            Bitmap rv = BitmapFactory.decodeStream(is, null, options);
-            is.close();
-
-            return rv;
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
     // The pack download progress bar.
     ProgressBar mProgressBar = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        long startTime = System.currentTimeMillis();
-        Log.v("python", "onCreate() started at " + startTime);
+        mActivity = this;
+        Log.v("python", "onCreate() started");
         OrientationPolicy.applyRequestedOrientation(this, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         super.onCreate(savedInstanceState);
 
         if (mLayout == null) {
+            Log.e("python", "mLayout is null after super.onCreate()");
             return;
         }
 
         // Initalize the store support.
         createStore();
 
-        // Show the presplash.
-        Bitmap presplashBitmap = getBitmap("android-presplash.png");
-
-        if (presplashBitmap == null) {
-            presplashBitmap = getBitmap("android-presplash.jpg");
-        }
-
-        if (presplashBitmap != null) {
-
-            mPresplash = new ImageView(this);
-            mPresplash.setBackgroundColor(presplashBitmap.getPixel(0, 0));
-            mPresplash.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            mPresplash.setImageBitmap(presplashBitmap);
-
-            mLayout.addView(mPresplash, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT));
-        }
-
+        Log.v("python", "onCreate() finished, mLayout initialized");
     }
 
     /**
      * Called by Ren'Py to hide the presplash after start.
      */
     public void hidePresplash() {
+        Log.v("python", "hidePresplash() called");
+        final PythonSDLActivity activity = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (mActivity.mPresplash != null) {
-                    mActivity.mLayout.removeView(mActivity.mPresplash);
-                    mActivity.mPresplash = null;
+                if (activity.mPresplash != null) {
+                    ViewGroup parent = (ViewGroup) activity.mPresplash.getParent();
+                    if (parent != null) {
+                        parent.removeView(activity.mPresplash);
+                    }
+                    activity.mPresplash = null;
                 }
 
-                if (mActivity.mProgressBar != null) {
-                    mActivity.mLayout.removeView(mActivity.mProgressBar);
-                    mActivity.mProgressBar = null;
+                if (activity.mProgressBar != null) {
+                    ViewGroup parent = (ViewGroup) activity.mProgressBar.getParent();
+                    if (parent != null) {
+                        parent.removeView(activity.mProgressBar);
+                    }
+                    activity.mProgressBar = null;
                 }
             }
         });
@@ -475,7 +489,14 @@ public class PythonSDLActivity extends SDLActivity {
     // Support public APIs. ////////////////////////////////////////////////////
 
     public void openUrl(String url) {
-        openURL(url);
+        Log.i("python", "Opening URL: " + url);
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setData(Uri.parse(url));
+            startActivity(i);
+        } catch (Exception e) {
+            Log.e("python", "Failed to open URL: " + url, e);
+        }
     }
 
     public void vibrate(double s) {
@@ -640,6 +661,20 @@ public class PythonSDLActivity extends SDLActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         Log.v("PythonSDLActivity", "onConfigurationChanged");
         super.onConfigurationChanged(newConfig);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        Log.v("python", "onWindowFocusChanged: " + hasFocus);
+        if (hasFocus) {
+            if (mTextEdit != null && mTextEdit.getVisibility() == View.VISIBLE) {
+                mTextEdit.requestFocus();
+            } else if (mSurface != null) {
+                View surfaceView = (View) mSurface;
+                surfaceView.requestFocus();
+            }
+        }
     }
 
     @Override
