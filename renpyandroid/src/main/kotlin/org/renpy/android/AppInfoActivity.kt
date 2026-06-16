@@ -48,7 +48,7 @@ class AppInfoActivity : GameWindowActivity() {
         binding.tvCommit.text = getString(R.string.app_info_commit, COMMIT_HASH)
 
         binding.cvCommit.setOnClickListener {
-            val url = "https://github.com/New-Traduction-Club/JustYuri-Android-port"
+            val url = "https://github.com/New-Traduction-Club/JustNatsuki-Android-port"
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(intent)
         }

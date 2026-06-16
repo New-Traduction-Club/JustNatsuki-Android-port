@@ -551,7 +551,6 @@ class SetupActivity : BaseActivity() {
                     val name = entry.name
                     if (!entry.isDirectory && name.contains("game/") && name.endsWith(".rpa")) {
                         val fileName = File(name).name
-                        if (fileName == "scripts.rpa") continue
                         
                         val targetFile = File(gameDir, fileName)
                         

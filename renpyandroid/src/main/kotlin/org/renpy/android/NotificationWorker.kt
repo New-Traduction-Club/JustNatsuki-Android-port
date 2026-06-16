@@ -33,7 +33,7 @@ import kotlin.math.max
  * # Show Immediate Notification
  * NotificationWorker.showNotification(
  *     context,
- *     "Yuri",
+ *     "Natsuki",
  *     "Yahallo!",
  *     "/storage/emulated/0/Android/data/our.package.name/files/game/images/yuri_icon.png" // or relative path to internal files
  * )
@@ -43,7 +43,7 @@ import kotlin.math.max
  * NotificationWorker.scheduleNotification(
  *     context,
  *     5 * 3600, 
- *     "Yuri",
+ *     "Natsuki",
  *     "Yahallo!",
  *     None 
  * )
@@ -54,7 +54,7 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Worker(co
     companion object {
         private const val CHANNEL_ID = "jy_game_channel_high"
         private const val CHANNEL_NAME = "JY Notifications"
-        private const val CHANNEL_DESC = "Notifications from Yuri"
+        private const val CHANNEL_DESC = "Notifications from Natsuki"
         
         const val KEY_TITLE = "title"
         const val KEY_MESSAGE = "message"
@@ -197,8 +197,8 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Worker(co
     }
 
     override fun doWork(): Result {
-        val title = inputData.getString(KEY_TITLE) ?: "Just Yuri"
-        val message = inputData.getString(KEY_MESSAGE) ?: "Yuri is waiting..."
+        val title = inputData.getString(KEY_TITLE) ?: "Just Natsuki"
+        val message = inputData.getString(KEY_MESSAGE) ?: "Natsuki is waiting..."
         val imagePath = inputData.getString(KEY_IMAGE_PATH)
 
         triggerNotification(applicationContext, title, message, imagePath)

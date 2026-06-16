@@ -1,37 +1,37 @@
 <resources>
-    <color name="colorPrimary">#9C5CB2</color>
+    <color name="colorPrimary">#E94D87</color>
     <color name="colorOnPrimary">#FFFFFF</color>
-    <color name="colorPrimaryContainer">#F3E5F5</color>
-    <color name="colorOnPrimaryContainer">#4A148C</color>
+    <color name="colorPrimaryContainer">#FCE4EC</color>
+    <color name="colorOnPrimaryContainer">#880E4F</color>
 
-    <color name="colorSecondary">#8E44AD</color>
+    <color name="colorSecondary">#D81B60</color>
     <color name="colorOnSecondary">#FFFFFF</color>
-    <color name="colorSecondaryContainer">#F3E5F5</color>
-    <color name="colorOnSecondaryContainer">#311B92</color>
+    <color name="colorSecondaryContainer">#FCE4EC</color>
+    <color name="colorOnSecondaryContainer">#5A002C</color>
 
-    <color name="colorBackground">#FBF7FB</color>
+    <color name="colorBackground">#FFF5F8</color>
     <color name="colorOnBackground">#1C202C</color>
     <color name="colorSurface">#FFFFFF</color>
     <color name="colorOnSurface">#1C202C</color>
-    <color name="colorSurfaceVariant">#F3E5F5</color>
-    <color name="colorOnSurfaceVariant">#4A148C</color>
-    <color name="colorOutline">#CBAADF</color>
+    <color name="colorSurfaceVariant">#FCE4EC</color>
+    <color name="colorOnSurfaceVariant">#880E4F</color>
+    <color name="colorOutline">#F8BBD0</color>
 
-    <color name="colorTaskbarBackground">#F3E5F5</color>
-    <color name="colorTaskbarTint">#9C5CB2</color>
-    <color name="colorTaskbarButtonPressed">#9C5CB2</color>
+    <color name="colorTaskbarBackground">#FCE4EC</color>
+    <color name="colorTaskbarTint">#E94D87</color>
+    <color name="colorTaskbarButtonPressed">#E94D87</color>
 
     <color name="colorWindowBackground">#FFFFFF</color>
     <color name="colorWindowHeaderBackground">#FFFFFF</color>
     <color name="colorWindowContentBackground">#FBFBFC</color>
-    <color name="colorWindowFooter">#D1B2FF</color>
+    <color name="colorWindowFooter">#FFB7D2</color>
 
     <color name="colorCardBackground">#FFFFFF</color>
-    <color name="colorDivider">#E1D5E7</color>
+    <color name="colorDivider">#F8D3E0</color>
     <color name="colorTextPrimary">#1C202C</color>
     <color name="colorTextSecondary">#888888</color>
-    <color name="colorIconTint">#9C5CB2</color>
+    <color name="colorIconTint">#E94D87</color>
 
-    <color name="colorSelectionFill">#330078D7</color>
-    <color name="colorSelectionStroke">#800078D7</color>
+    <color name="colorSelectionFill">#33E94D87</color>
+    <color name="colorSelectionStroke">#80E94D87</color>
 </resources>
