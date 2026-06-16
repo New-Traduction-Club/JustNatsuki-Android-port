@@ -355,6 +355,16 @@ public class PythonSDLActivity extends SDLActivity {
         OrientationPolicy.applyRequestedOrientation(this, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         super.onCreate(savedInstanceState);
 
+        applyImmersiveFullscreen();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
+                @Override
+                public void onSystemUiVisibilityChange(int visibility) {
+                    applyImmersiveFullscreen();
+                }
+            });
+        }
+
         if (mLayout == null) {
             Log.e("python", "mLayout is null after super.onCreate()");
             return;
@@ -390,6 +400,8 @@ public class PythonSDLActivity extends SDLActivity {
                     }
                     activity.mProgressBar = null;
                 }
+
+                activity.applyImmersiveFullscreen();
             }
         });
     }
@@ -668,6 +680,7 @@ public class PythonSDLActivity extends SDLActivity {
         super.onWindowFocusChanged(hasFocus);
         Log.v("python", "onWindowFocusChanged: " + hasFocus);
         if (hasFocus) {
+            applyImmersiveFullscreen();
             if (mTextEdit != null && mTextEdit.getVisibility() == View.VISIBLE) {
                 mTextEdit.requestFocus();
             } else if (mSurface != null) {
@@ -680,6 +693,7 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        applyImmersiveFullscreen();
         mPendingPictureInPictureEnter = false;
         DiscordRpcManager.startIfEnabled(this);
         
@@ -724,6 +738,26 @@ public class PythonSDLActivity extends SDLActivity {
                 .putString("last_played_day", today)
                 .remove("last_session_start")
                 .apply();
+        }
+    }
+
+    private void applyImmersiveFullscreen() {
+        final View decorView = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                controller.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            int options = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+            decorView.setSystemUiVisibility(options);
         }
     }
 }
