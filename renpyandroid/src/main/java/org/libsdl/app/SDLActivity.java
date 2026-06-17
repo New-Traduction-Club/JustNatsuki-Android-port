@@ -384,8 +384,15 @@ public class SDLActivity extends Activity {
                 if (mTextEdit != null) {
                     mTextEdit.setVisibility(View.GONE);
 
-                    InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
-                    imm.hideSoftInputFromWindow(mTextEdit.getWindowToken(), 0);
+                    if (mSingleton instanceof org.renpy.android.PythonSDLActivity) {
+                        org.renpy.android.VirtualKeyboardManager.hideKeyboard((org.renpy.android.PythonSDLActivity) mSingleton);
+                    } else {
+                        InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+                        imm.hideSoftInputFromWindow(mTextEdit.getWindowToken(), 0);
+                    }
+                }
+                if (mSurface != null) {
+                    mSurface.requestFocus();
                 }
                 break;
             case COMMAND_SET_KEEP_SCREEN_ON:
@@ -543,9 +550,13 @@ public class SDLActivity extends Activity {
             mTextEdit.setVisibility(View.VISIBLE);
             mTextEdit.requestFocus();
 
-            InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-            imm.showSoftInput(mTextEdit, 0);
-            imm.restartInput(mTextEdit);
+            if (mSingleton instanceof org.renpy.android.PythonSDLActivity) {
+                org.renpy.android.VirtualKeyboardManager.showKeyboard((org.renpy.android.PythonSDLActivity) mSingleton);
+            } else {
+                InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.showSoftInput(mTextEdit, 0);
+                imm.restartInput(mTextEdit);
+            }
         }
     }
 
@@ -1171,7 +1182,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         // If DummyEdit is active, let it handle the keyboard
         if (SDLActivity.mTextEdit != null && SDLActivity.mTextEdit.getVisibility() == View.VISIBLE && SDLActivity.mTextEdit.isFocused()) {
-            if ((event.getSource() & InputDevice.SOURCE_KEYBOARD) != 0) {
+            if ((event.getSource() & InputDevice.SOURCE_KEYBOARD) != 0 || event.getSource() == 0) {
                 return false; // Let it fall through to DummyEdit.onKey
             }
         }
@@ -1193,14 +1204,14 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
             }
         }
 
-        if( (event.getSource() & InputDevice.SOURCE_KEYBOARD) != 0) {
+        if( (event.getSource() & InputDevice.SOURCE_KEYBOARD) != 0 || event.getSource() == 0) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                //Log.v("SDL", "key down: " + keyCode);
+                // Log.v("SDL", "onKey Down: calling onNativeKeyDown(" + keyCode + ")");
                 SDLActivity.onNativeKeyDown(keyCode);
                 return true;
             }
             else if (event.getAction() == KeyEvent.ACTION_UP) {
-                //Log.v("SDL", "key up: " + keyCode);
+                // Log.v("SDL", "onKey Up: calling onNativeKeyUp(" + keyCode + ")");
                 SDLActivity.onNativeKeyUp(keyCode);
                 return true;
             }

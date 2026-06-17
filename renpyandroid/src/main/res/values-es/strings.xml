@@ -450,4 +450,8 @@
     <string name="update_dialog_warning">La actualización se está ejecutando. Cerrar esta ventana ahora podría corromper los archivos del juego. Por favor, espera a que termine.</string>
     <string name="update_select_version_title">Seleccionar versión de actualización</string>
     <string name="update_error_fetch_failed">No se pudieron obtener las actualizaciones disponibles.</string>
+
+    <!-- Toolbox -->
+    <string name="toolbox_title">Toolbox</string>
+    <string name="tool_virtual_keyboard">Teclado Virtual</string>
 </resources>

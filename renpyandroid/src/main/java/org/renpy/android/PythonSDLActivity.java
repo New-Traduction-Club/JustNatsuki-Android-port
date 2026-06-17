@@ -155,6 +155,8 @@ public class PythonSDLActivity extends SDLActivity {
                 }
             }
         });
+
+        ToolboxManager.initialize(this);
     }
 
 
@@ -402,6 +404,7 @@ public class PythonSDLActivity extends SDLActivity {
                 }
 
                 activity.applyImmersiveFullscreen();
+                ToolboxManager.initialize(activity);
             }
         });
     }
@@ -741,7 +744,7 @@ public class PythonSDLActivity extends SDLActivity {
         }
     }
 
-    private void applyImmersiveFullscreen() {
+    public void applyImmersiveFullscreen() {
         final View decorView = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             getWindow().setDecorFitsSystemWindows(false);

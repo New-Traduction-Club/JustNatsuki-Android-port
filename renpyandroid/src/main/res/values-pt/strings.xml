@@ -451,4 +451,8 @@
     <string name="update_dialog_warning">A atualização está em andamento. Fechar esta janela agora pode corromper os arquivos do jogo. Por favor, aguarde até que termine.</string>
     <string name="update_select_version_title">Selecionar Versão de Atualização</string>
     <string name="update_error_fetch_failed">Não foi possível buscar as atualizações disponíveis.</string>
+
+    <!-- Toolbox -->
+    <string name="toolbox_title">Toolbox</string>
+    <string name="tool_virtual_keyboard">Teclado Virtual</string>
 </resources>
