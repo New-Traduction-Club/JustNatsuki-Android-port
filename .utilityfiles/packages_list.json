@@ -1,6 +1,12 @@
 {
   "packages": [
     {
+      "version": "v1.3.5-exp5",
+      "download_url": "https://github.com/New-Traduction-Club/NatsukiModDev-Unofficial-Android/releases/download/v1.3.5-experimental5/jn-1.3.5-exp5.zip",
+      "sha256": "cbb57f97407519acacbb4460598ed445c4bfc1e8ba792cfbe85a6f2973570198",
+      "min_app_version": 1
+    },
+    {
       "version": "v1.3.5-exp4",
       "download_url": "https://github.com/New-Traduction-Club/NatsukiModDev-Unofficial-Android/releases/download/v1.3.5-experimental4/jn-1.3.5-exp4.zip",
       "sha256": "71cba9baa9134fadbd2996cdb872c2995f6d49412474be2fad7890a7660d3a11",
