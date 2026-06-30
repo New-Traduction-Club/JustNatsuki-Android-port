@@ -1011,7 +1011,7 @@ class LauncherActivity : BaseActivity() {
         Thread {
             var sanitizeError: IOException? = null
             try {
-                ensureAndroidMasbaseBootstrapScript()
+                // ensureAndroidMasbaseBootstrapScript()
                 removeUtf8CodingDeclarationsInPythonPackages()
             } catch (e: IOException) {
                 sanitizeError = e
