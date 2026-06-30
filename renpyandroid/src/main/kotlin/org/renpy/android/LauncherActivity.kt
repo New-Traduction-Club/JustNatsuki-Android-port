@@ -12,6 +12,8 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.TextView
+import android.widget.LinearLayout
 import android.os.StatFs
 import android.os.SystemClock
 import android.text.format.Formatter
@@ -116,6 +118,149 @@ class LauncherActivity : BaseActivity() {
     private var selectionStartX = 0f
     private var selectionStartY = 0f
 
+    private val runningApps = mutableMapOf<String, RunningAppInfo>()
+    private var lastFocusedAppId: String? = null
+
+    data class RunningAppInfo(
+        val id: String,
+        val name: String,
+        var state: String
+    )
+
+    private val windowStateReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: android.content.Intent) {
+            if (intent.action == DesktopWindowManager.ACTION_WINDOW_STATE_CHANGED) {
+                val id = intent.getStringExtra(DesktopWindowManager.EXTRA_ACTIVITY_ID) ?: return
+                val name = intent.getStringExtra(DesktopWindowManager.EXTRA_ACTIVITY_NAME) ?: "App"
+                val state = intent.getStringExtra(DesktopWindowManager.EXTRA_STATE) ?: return
+
+                if (state == "DESTROYED") {
+                    runningApps.remove(id)
+                    if (lastFocusedAppId == id) {
+                        lastFocusedAppId = runningApps.keys.lastOrNull { runningApps[it]?.state == "RUNNING" }
+                    }
+                } else {
+                    runningApps[id] = RunningAppInfo(id, name, state)
+                    if (state == "RUNNING") {
+                        lastFocusedAppId = id
+                    } else if (lastFocusedAppId == id) {
+                        lastFocusedAppId = runningApps.keys.lastOrNull { runningApps[it]?.state == "RUNNING" }
+                    }
+                }
+                updateTaskbarApps()
+            }
+        }
+    }
+
+    private fun isProcessRunning(processName: String): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager ?: return false
+        val runningProcesses = manager.runningAppProcesses ?: return false
+        for (processInfo in runningProcesses) {
+            if (processInfo.processName == processName) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun bringRunningActivitiesToFront() {
+        val renpyProcessName = "$packageName:renpy"
+        if (runningApps.containsKey("org.renpy.android.PythonSDLActivity") && !isProcessRunning(renpyProcessName)) {
+            runningApps.remove("org.renpy.android.PythonSDLActivity")
+            if (lastFocusedAppId == "org.renpy.android.PythonSDLActivity") {
+                lastFocusedAppId = runningApps.keys.lastOrNull { runningApps[it]?.state == "RUNNING" }
+            }
+            updateTaskbarApps()
+        }
+
+        val runningIds = runningApps.values
+            .filter { it.state == "RUNNING" }
+            .map { it.id }
+
+        if (runningIds.isEmpty()) return
+
+        for (id in runningIds) {
+            if (id != lastFocusedAppId) {
+                if (id == "org.renpy.android.PythonSDLActivity" || ActiveActivityRegistry.activeActivities.contains(id)) {
+                    bringToFront(id)
+                }
+            }
+        }
+
+        lastFocusedAppId?.let { id ->
+            if (runningIds.contains(id)) {
+                if (id == "org.renpy.android.PythonSDLActivity" || ActiveActivityRegistry.activeActivities.contains(id)) {
+                    bringToFront(id)
+                }
+            }
+        }
+    }
+
+    private fun bringToFront(id: String) {
+        try {
+            val activityClass = Class.forName(id)
+            val intent = Intent(this, activityClass).apply {
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("LauncherActivity", "Failed to bring app to front: $id", e)
+        }
+    }
+
+    private fun launchActivityWindow(intent: Intent, classId: String) {
+        returnFromWindow = true
+        lastFocusedAppId = classId
+        bringRunningActivitiesToFront()
+        startActivity(intent)
+    }
+
+    private fun updateTaskbarApps() {
+        binding.runningAppsContainer.removeAllViews()
+        val density = resources.displayMetrics.density
+        val paddingHorizontal = (12 * density).toInt()
+        val paddingVertical = (4 * density).toInt()
+
+        for (app in runningApps.values) {
+            val appButton = TextView(this).apply {
+                text = app.name
+                textSize = 12f
+                gravity = android.view.Gravity.CENTER
+                setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical)
+                
+                if (app.state == "MINIMIZED") {
+                    setTextColor(androidx.core.content.ContextCompat.getColor(this@LauncherActivity, R.color.colorTaskbarTint))
+                    setBackgroundResource(R.drawable.bg_taskbar)
+                    alpha = 0.5f
+                } else {
+                    setTextColor(Color.WHITE)
+                    setBackgroundResource(R.drawable.bg_taskbar_button_press)
+                    alpha = 1.0f
+                }
+
+                setOnClickListener {
+                    SoundEffects.playClick(this@LauncherActivity)
+                    if (app.state == "MINIMIZED") {
+                        lastFocusedAppId = app.id
+                        DesktopWindowManager.sendCommand(this@LauncherActivity, app.id, "RESTORE")
+                    } else {
+                        DesktopWindowManager.sendCommand(this@LauncherActivity, app.id, "MINIMIZE")
+                    }
+                }
+
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    marginStart = (4 * density).toInt()
+                    marginEnd = (4 * density).toInt()
+                }
+                layoutParams = params
+            }
+            binding.runningAppsContainer.addView(appButton)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -159,6 +304,29 @@ class LauncherActivity : BaseActivity() {
         startBootCrtAnimations()
         
         createNotificationChannel()
+
+        // Register window state broadcast receiver
+        val filter = android.content.IntentFilter(DesktopWindowManager.ACTION_WINDOW_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(windowStateReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(windowStateReceiver, filter)
+        }
+
+        binding.btnStartMenu.setOnClickListener {
+            SoundEffects.playClick(this)
+            isStartMenuExpanded = false
+            hideExpandedMenuAnimated()
+            if (binding.startMenuPanel.visibility == View.VISIBLE) {
+                binding.startMenuPanel.animate()
+                    .translationY(binding.startMenuPanel.height.toFloat())
+                    .setDuration(220)
+                    .withEndAction { binding.startMenuPanel.visibility = View.GONE }
+                    .start()
+            } else {
+                showStartMenuAnimated()
+            }
+        }
 
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         
@@ -287,6 +455,11 @@ class LauncherActivity : BaseActivity() {
                 ensureStartMenuVisible()
             }
         }
+
+        lifecycleScope.launch {
+            delay(150)
+            bringRunningActivitiesToFront()
+        }
     }
 
     override fun onPause() {
@@ -304,6 +477,11 @@ class LauncherActivity : BaseActivity() {
     override fun onDestroy() {
         if (isUiInitialized) {
             WallpaperManager.clearVideoWallpaper(binding.root)
+        }
+        try {
+            unregisterReceiver(windowStateReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
         }
         super.onDestroy()
     }
@@ -663,8 +841,10 @@ class LauncherActivity : BaseActivity() {
             showDiscordRpcWarningDialog(prefs)
             return
         }
-        returnFromWindow = true
-        startActivity(Intent(this, DiscordRpcActivity::class.java))
+        val intent = Intent(this, DiscordRpcActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        launchActivityWindow(intent, DiscordRpcActivity::class.java.name)
     }
 
     private fun showDiscordRpcWarningDialog(prefs: SharedPreferences) {
@@ -700,9 +880,10 @@ class LauncherActivity : BaseActivity() {
                 .setItems(versions) { _, which ->
                     val selected = packages[which]
                     val intent = Intent(this@LauncherActivity, UpdateWindowActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                         putExtra("package_info", selected)
                     }
-                    startActivity(intent)
+                    launchActivityWindow(intent, UpdateWindowActivity::class.java.name)
                 }
                 .setNegativeButton(getString(R.string.cancel), null)
                 .show()
@@ -757,42 +938,54 @@ class LauncherActivity : BaseActivity() {
                     .show()
             }
             "internal_files" -> {
-                returnFromWindow = true
-                val intent = Intent(this, FileExplorerActivity::class.java)
-                intent.putExtra("startPath", filesDir.absolutePath)
-                startActivity(intent)
+                val intent = Intent(this, FileExplorerActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    putExtra("startPath", filesDir.absolutePath)
+                }
+                launchActivityWindow(intent, FileExplorerActivity::class.java.name)
             }
             "settings" -> {
-                returnFromWindow = true
-                startActivity(Intent(this, SettingsActivity::class.java))
+                val intent = Intent(this, SettingsActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, SettingsActivity::class.java.name)
             }
             "extra_content" -> {
-                returnFromWindow = true
-                startActivity(Intent(this, ExtraContentActivity::class.java))
+                val intent = Intent(this, ExtraContentActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, ExtraContentActivity::class.java.name)
             }
             "discord_rpc" -> {
                 openDiscordRpcWindow()
             }
             "backups" -> {
-                returnFromWindow = true
-                startActivity(Intent(this, BackupsActivity::class.java))
+                val intent = Intent(this, BackupsActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, BackupsActivity::class.java.name)
             }
             "wallpapers" -> {
-                returnFromWindow = true
-                startActivity(Intent(this, WallpapersActivity::class.java))
+                val intent = Intent(this, WallpapersActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, WallpapersActivity::class.java.name)
             }
             "external_files" -> {
-                returnFromWindow = true
                 val externalPath = getExternalFilesDir(null)?.absolutePath
                 if (externalPath != null) {
-                    val intent = Intent(this, FileExplorerActivity::class.java)
-                    intent.putExtra("startPath", externalPath)
-                    startActivity(intent)
+                    val intent = Intent(this, FileExplorerActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        putExtra("startPath", externalPath)
+                    }
+                    launchActivityWindow(intent, FileExplorerActivity::class.java.name)
                 }
             }
             "app_info" -> {
-                returnFromWindow = true
-                startActivity(Intent(this, AppInfoActivity::class.java))
+                val intent = Intent(this, AppInfoActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, AppInfoActivity::class.java.name)
             }
         }
     }
@@ -1021,7 +1214,10 @@ class LauncherActivity : BaseActivity() {
                 sanitizeError?.let { error ->
                     InAppNotifier.show(this@LauncherActivity, getString(R.string.install_error, error.message), true)
                 }
-                startActivity(Intent(this@LauncherActivity, PythonSDLActivity::class.java))
+                val intent = Intent(this@LauncherActivity, PythonSDLActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                launchActivityWindow(intent, PythonSDLActivity::class.java.name)
             }
         }.start()
     }

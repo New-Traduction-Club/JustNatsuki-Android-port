@@ -128,8 +128,8 @@ object ToolboxManager {
                 (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
             }
             val themedContext = activity.createConfigurationContext(config)
-            themedContext.setTheme(activity.applicationInfo.theme)
-            val themedInflater = LayoutInflater.from(themedContext)
+            val contextThemeWrapper = android.view.ContextThemeWrapper(themedContext, androidx.appcompat.R.style.Theme_AppCompat_DayNight_NoActionBar)
+            val themedInflater = LayoutInflater.from(contextThemeWrapper)
 
             val binding = ToolboxPanelBinding.inflate(themedInflater, activity.mFrameLayout, false)
             val view = binding.root
@@ -177,7 +177,7 @@ object ToolboxManager {
                     WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
                 )
                 drawer.setPadding(
-                    insets.left + 16.dpToPx(themedContext),
+                    insets.left + 16.dpToPx(contextThemeWrapper),
                     drawer.paddingTop,
                     drawer.paddingRight,
                     drawer.paddingBottom
@@ -189,7 +189,7 @@ object ToolboxManager {
                 hideToolbox(activity)
             }
 
-            val gestureDetector = GestureDetector(themedContext, object : GestureDetector.SimpleOnGestureListener() {
+            val gestureDetector = GestureDetector(contextThemeWrapper, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                     if (e1 != null) {
                         val diffX = e2.x - e1.x
@@ -211,8 +211,8 @@ object ToolboxManager {
             }
 
             val tools = getToolItems(activity)
-            recyclerView.layoutManager = GridLayoutManager(themedContext, 3)
-            recyclerView.adapter = ToolsAdapter(themedContext, tools)
+            recyclerView.layoutManager = GridLayoutManager(contextThemeWrapper, 3)
+            recyclerView.adapter = ToolsAdapter(contextThemeWrapper, tools)
 
             activity.mFrameLayout.addView(view)
             activity.applyImmersiveFullscreen()
@@ -257,8 +257,35 @@ object ToolboxManager {
             ToolItem(R.string.tool_virtual_keyboard) { ctx ->
                 hideToolbox(activity)
                 VirtualKeyboardManager.showKeyboard(activity)
+            },
+            ToolItem(R.string.tool_window_controller) { ctx ->
+                hideToolbox(activity)
+                showWindowModeDialog(activity)
             }
         )
+    }
+
+    private fun showWindowModeDialog(activity: PythonSDLActivity) {
+        val prefs = activity.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val contextThemeWrapper = android.view.ContextThemeWrapper(activity, androidx.appcompat.R.style.Theme_AppCompat_DayNight_NoActionBar)
+        val currentMode = prefs.getString("renpy_window_mode", "fullscreen") ?: "fullscreen"
+        val options = arrayOf(
+            contextThemeWrapper.getString(R.string.renpy_window_mode_fullscreen),
+            contextThemeWrapper.getString(R.string.renpy_window_mode_windowed)
+        )
+        val checkedItem = if (currentMode == "windowed") 1 else 0
+
+        GameDialogBuilder(contextThemeWrapper)
+            .setTitle(contextThemeWrapper.getString(R.string.renpy_window_mode_title))
+            .setSingleChoiceItems(options, checkedItem) { dialog, which ->
+                val newMode = if (which == 1) "windowed" else "fullscreen"
+                if (newMode != currentMode) {
+                    activity.windowDecorator?.setWindowModeDynamically(newMode == "windowed")
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(contextThemeWrapper.getString(R.string.cancel), null)
+            .show()
     }
 
     private fun Int.dpToPx(context: Context): Int {

@@ -22,6 +22,7 @@ import android.os.VibrationEffect;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnSystemUiVisibilityChangeListener;
@@ -31,6 +32,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.ProgressBar;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -64,6 +67,31 @@ public class PythonSDLActivity extends SDLActivity {
      * This exists so python code can access this activity.
      */
     public static PythonSDLActivity mActivity = null;
+
+    private WindowDecorator mWindowDecorator = null;
+
+    public WindowDecorator getWindowDecorator() {
+        return mWindowDecorator;
+    }
+
+    private final BroadcastReceiver mCommandReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (DesktopWindowManager.ACTION_WINDOW_COMMAND.equals(intent.getAction())) {
+                String targetId = intent.getStringExtra(DesktopWindowManager.EXTRA_ACTIVITY_ID);
+                String command = intent.getStringExtra(DesktopWindowManager.EXTRA_COMMAND);
+                if (targetId != null && targetId.equals(PythonSDLActivity.class.getName())) {
+                    if (mWindowDecorator != null) {
+                        if ("MINIMIZE".equals(command)) {
+                            mWindowDecorator.minimizeWindow();
+                        } else if ("RESTORE".equals(command)) {
+                            mWindowDecorator.restoreWindow();
+                        }
+                    }
+                }
+            }
+        }
+    };
 
     /**
      * The layout that contains the SDL view. VideoPlayer uses this to add
@@ -144,7 +172,12 @@ public class PythonSDLActivity extends SDLActivity {
         mVbox.setOrientation(LinearLayout.VERTICAL);
         mVbox.addView(mFrameLayout, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, (float) 1.0));
 
-        super.setContentView(mVbox);
+        if (mWindowDecorator != null) {
+            View decoratedView = mWindowDecorator.decorate(mVbox, "Just Natsuki");
+            super.setContentView(decoratedView);
+        } else {
+            super.setContentView(mVbox);
+        }
 
         mFrameLayout.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
             @Override
@@ -351,9 +384,47 @@ public class PythonSDLActivity extends SDLActivity {
     ProgressBar mProgressBar = null;
 
     @Override
+    protected void attachBaseContext(Context newBase) {
+        SharedPreferences prefs = newBase.getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+        
+        String language = prefs.getString("language", "English");
+        java.util.Locale locale;
+        if ("Español".equals(language)) {
+            locale = new java.util.Locale("es");
+        } else if ("Português".equals(language)) {
+            locale = new java.util.Locale("pt");
+        } else {
+            locale = java.util.Locale.ENGLISH;
+        }
+        java.util.Locale.setDefault(locale);
+
+        boolean darkMode = prefs.getBoolean("dark_mode_enabled", false);
+        Log.v("PythonSDLActivity", "attachBaseContext - language: " + language + ", darkMode: " + darkMode);
+
+        Configuration config = new Configuration();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            config.setLocale(locale);
+        } else {
+            config.locale = locale;
+        }
+
+        config.uiMode = (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | 
+            (darkMode ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO);
+
+        try {
+            applyOverrideConfiguration(config);
+            Log.v("PythonSDLActivity", "attachBaseContext - applyOverrideConfiguration successful");
+        } catch (IllegalStateException e) {
+            Log.e("PythonSDLActivity", "attachBaseContext - Failed to apply override configuration", e);
+        }
+        super.attachBaseContext(newBase);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         mActivity = this;
         Log.v("python", "onCreate() started");
+        mWindowDecorator = new WindowDecorator(this);
         OrientationPolicy.applyRequestedOrientation(this, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         super.onCreate(savedInstanceState);
 
@@ -374,6 +445,13 @@ public class PythonSDLActivity extends SDLActivity {
 
         // Initalize the store support.
         createStore();
+
+        IntentFilter filter = new IntentFilter(DesktopWindowManager.ACTION_WINDOW_COMMAND);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mCommandReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(mCommandReceiver, filter);
+        }
 
         Log.v("python", "onCreate() finished, mLayout initialized");
     }
@@ -405,23 +483,16 @@ public class PythonSDLActivity extends SDLActivity {
 
                 activity.applyImmersiveFullscreen();
                 ToolboxManager.initialize(activity);
+                InAppNotifier.show(activity, activity.getString(R.string.toolbox_swipe_tip), true);
             }
         });
     }
 
     @Override
     public void finish() {
-        // Return to Launcher
-        try {
-            Intent intent = new Intent(this, LauncherActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } catch (Exception e) {
-            Log.e("PythonSDLActivity", "Failed to return to launcher", e);
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            mWindowDecorator.notifyState("DESTROYED");
         }
-        
-        // Skip nativeQuit() in SDLActivity.onDestroy() to prevent killing the process
-        mSkipNativeQuit = true;
         super.finish();
     }
 
@@ -429,18 +500,33 @@ public class PythonSDLActivity extends SDLActivity {
     protected void onDestroy() {
         Log.v("python", "onDestroy()");
 
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            mWindowDecorator.notifyState("DESTROYED");
+        }
+        try {
+            unregisterReceiver(mCommandReceiver);
+        } catch (Exception e) {}
+
         DiscordRpcManager.stop();
         super.onDestroy();
 
         if (mStore != null) {
             mStore.destroy();
         }
+
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         Log.v("python", "onNewIntent()");
+        super.onNewIntent(intent);
         setIntent(intent);
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            if (mWindowDecorator.isWindowMinimizedState()) {
+                mWindowDecorator.restoreWindow();
+            }
+        }
     }
 
     public boolean mStopDone = true;
@@ -674,7 +760,30 @@ public class PythonSDLActivity extends SDLActivity {
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
-        Log.v("PythonSDLActivity", "onConfigurationChanged");
+        Log.v("PythonSDLActivity", "onConfigurationChanged - incoming uiMode: " + newConfig.uiMode);
+        SharedPreferences prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+        String language = prefs.getString("language", "English");
+        java.util.Locale locale;
+        if ("Español".equals(language)) {
+            locale = new java.util.Locale("es");
+        } else if ("Português".equals(language)) {
+            locale = new java.util.Locale("pt");
+        } else {
+            locale = java.util.Locale.ENGLISH;
+        }
+        
+        boolean darkMode = prefs.getBoolean("dark_mode_enabled", false);
+        Log.v("PythonSDLActivity", "onConfigurationChanged - user dark mode: " + darkMode);
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            newConfig.setLocale(locale);
+        } else {
+            newConfig.locale = locale;
+        }
+        newConfig.uiMode = (newConfig.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | 
+            (darkMode ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO);
+            
+        Log.v("PythonSDLActivity", "onConfigurationChanged - outgoing uiMode: " + newConfig.uiMode);
         super.onConfigurationChanged(newConfig);
     }
 
@@ -709,6 +818,12 @@ public class PythonSDLActivity extends SDLActivity {
             .edit()
             .putLong("last_session_start", start)
             .apply();
+
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            if (!mWindowDecorator.isWindowMinimizedState()) {
+                mWindowDecorator.notifyState("RUNNING");
+            }
+        }
     }
 
     @Override
@@ -762,5 +877,15 @@ public class PythonSDLActivity extends SDLActivity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
             decorView.setSystemUiVisibility(options);
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            if (ev.getAction() == MotionEvent.ACTION_DOWN && !hasWindowFocus()) {
+                mWindowDecorator.bringToFrontSelf();
+            }
+        }
+        return super.dispatchTouchEvent(ev);
     }
 }

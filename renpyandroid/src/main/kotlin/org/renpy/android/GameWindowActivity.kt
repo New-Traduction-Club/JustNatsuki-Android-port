@@ -18,10 +18,45 @@ import androidx.core.widget.NestedScrollView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.cardview.widget.CardView
 import android.widget.LinearLayout
+import android.content.Intent
+import android.content.IntentFilter
+import android.view.MotionEvent
+import android.view.Gravity
+import android.view.WindowManager
 
 abstract class GameWindowActivity : BaseActivity() {
 
     enum class WindowMode { MAXIMIZED, WINDOWED }
+
+    private var lastWindowX = 0
+    private var lastWindowY = 0
+    private var isWindowMinimized = false
+    private var preMinimizeParams: WindowManager.LayoutParams? = null
+
+    private val commandReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == DesktopWindowManager.ACTION_WINDOW_COMMAND) {
+                val targetId = intent.getStringExtra(DesktopWindowManager.EXTRA_ACTIVITY_ID) ?: return
+                val command = intent.getStringExtra(DesktopWindowManager.EXTRA_COMMAND) ?: return
+
+                if (targetId == this@GameWindowActivity::class.java.name) {
+                    when (command) {
+                        "MINIMIZE" -> minimizeWindow()
+                        "RESTORE" -> restoreWindow()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun notifyState(state: String) {
+        val appName = if (::txtWindowTitle.isInitialized && txtWindowTitle.text.isNotEmpty()) {
+            txtWindowTitle.text.toString()
+        } else {
+            title?.toString() ?: this::class.java.simpleName
+        }
+        DesktopWindowManager.notifyStateChanged(this, this::class.java.name, appName, state)
+    }
 
     override fun attachBaseContext(newBase: Context) {
         val config = Configuration(newBase.resources.configuration)
@@ -53,6 +88,7 @@ abstract class GameWindowActivity : BaseActivity() {
     private var windowRootLayout: ViewGroup? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ActiveActivityRegistry.activeActivities.add(this::class.java.name)
         super.onCreate(savedInstanceState)
         
         supportRequestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
@@ -63,23 +99,51 @@ abstract class GameWindowActivity : BaseActivity() {
         overridePendingTransition(R.anim.window_scale_in, R.anim.window_fade_out)
 
         SoundEffects.initialize(this)
+
+        val filter = IntentFilter(DesktopWindowManager.ACTION_WINDOW_COMMAND)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(commandReceiver, filter)
+        }
     }
 
     override fun finish() {
+        ActiveActivityRegistry.activeActivities.remove(this::class.java.name)
         super.finish()
         overridePendingTransition(R.anim.window_fade_in, R.anim.window_scale_out)
     }
 
     override fun onStart() {
         super.onStart()
-        window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         window?.setBackgroundDrawableResource(android.R.color.transparent)
         applyImmersiveFullscreen()
+        windowRootLayout?.let { applyWindowMode(it) }
     }
 
     override fun onResume() {
         super.onResume()
         applyImmersiveFullscreen()
+        if (!isWindowMinimized) {
+            notifyState("RUNNING")
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (isWindowMinimized) {
+            restoreWindow()
+        }
+    }
+
+    override fun onDestroy() {
+        ActiveActivityRegistry.activeActivities.remove(this::class.java.name)
+        notifyState("DESTROYED")
+        try {
+            unregisterReceiver(commandReceiver)
+        } catch (e: Exception) {}
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -144,6 +208,129 @@ abstract class GameWindowActivity : BaseActivity() {
         }
     }
 
+    private fun setupWindowDecorations(root: ViewGroup) {
+        val headerLayout = root.findViewById<View>(R.id.headerLayout)
+        if (headerLayout != null) {
+            setupDragging(headerLayout)
+        }
+
+        val btnWindowMinimize = root.findViewById<View>(R.id.btnWindowMinimize)
+        btnWindowMinimize?.setOnClickListener {
+            SoundEffects.playClick(this)
+            minimizeWindow()
+        }
+
+        val btnWindowMaximize = root.findViewById<View>(R.id.btnWindowMaximize)
+        btnWindowMaximize?.setOnClickListener {
+            SoundEffects.playClick(this)
+            toggleMaximize()
+        }
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun setupDragging(headerView: View) {
+        var startRawX = 0f
+        var startRawY = 0f
+        var initialX = 0
+        var initialY = 0
+
+        headerView.setOnTouchListener { _, event ->
+            if (getWindowMode() != WindowMode.WINDOWED) return@setOnTouchListener false
+
+            val w = window ?: return@setOnTouchListener false
+            val params = w.attributes
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startRawX = event.rawX
+                    startRawY = event.rawY
+                    initialX = params.x
+                    initialY = params.y
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - startRawX
+                    val dy = event.rawY - startRawY
+                    
+                    params.x = initialX + dx.toInt()
+                    params.y = initialY + dy.toInt()
+                    
+                    lastWindowX = params.x
+                    lastWindowY = params.y
+
+                    w.attributes = params
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun minimizeWindow() {
+        if (isWindowMinimized) return
+        val w = window ?: return
+        val root = windowRootLayout ?: return
+
+        isWindowMinimized = true
+        preMinimizeParams = WindowManager.LayoutParams().apply {
+            copyFrom(w.attributes)
+        }
+
+        val card = root.findViewById<View>(R.id.cardWindowContainer)
+        card?.visibility = View.GONE
+
+        val params = w.attributes
+        params.width = 1
+        params.height = 1
+        params.gravity = Gravity.TOP or Gravity.LEFT
+        params.x = 0
+        params.y = 0
+        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        w.attributes = params
+
+        notifyState("MINIMIZED")
+    }
+
+    private fun restoreWindow() {
+        if (!isWindowMinimized) return
+        val w = window ?: return
+        val root = windowRootLayout ?: return
+
+        isWindowMinimized = false
+
+        val card = root.findViewById<View>(R.id.cardWindowContainer)
+        card?.visibility = View.VISIBLE
+
+        val params = w.attributes
+        preMinimizeParams?.let {
+            params.width = it.width
+            params.height = it.height
+            params.x = it.x
+            params.y = it.y
+            params.gravity = it.gravity
+            params.flags = it.flags
+        }
+        w.attributes = params
+
+        val intent = Intent(this, this::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        startActivity(intent)
+
+        notifyState("RUNNING")
+    }
+
+    private fun toggleMaximize() {
+        val root = windowRootLayout ?: return
+        val currentMode = getWindowMode()
+        val newMode = if (currentMode == WindowMode.WINDOWED) WindowMode.MAXIMIZED else WindowMode.WINDOWED
+        
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_WINDOW_MODE, if (newMode == WindowMode.WINDOWED) "windowed" else "maximized").apply()
+        
+        applyWindowMode(root)
+        notifyState("RUNNING")
+    }
+
     override fun setContentView(layoutResID: Int) {
         val rootLayout = layoutInflater.inflate(R.layout.layout_game_window_chrome, null) as ViewGroup
         contentContainer = rootLayout.findViewById(R.id.windowContent)
@@ -153,13 +340,14 @@ abstract class GameWindowActivity : BaseActivity() {
 
         applyWindowMode(rootLayout)
         setupWindowChrome(rootLayout)
+        setupWindowDecorations(rootLayout)
 
         // Inflate the child activity's layout into the container
         layoutInflater.inflate(layoutResID, contentContainer, true)
 
         btnWindowClose.setOnClickListener {
             SoundEffects.playClick(this)
-            onBackPressed()
+            finish()
         }
 
         super.setContentView(rootLayout)
@@ -179,12 +367,13 @@ abstract class GameWindowActivity : BaseActivity() {
 
         applyWindowMode(rootLayout)
         setupWindowChrome(rootLayout)
+        setupWindowDecorations(rootLayout)
 
         contentContainer.addView(view)
 
         btnWindowClose.setOnClickListener {
             SoundEffects.playClick(this)
-            onBackPressed()
+            finish()
         }
 
         super.setContentView(rootLayout)
@@ -200,6 +389,7 @@ abstract class GameWindowActivity : BaseActivity() {
         if (::txtWindowTitle.isInitialized) {
             txtWindowTitle.setText(titleId)
         }
+        notifyState("RUNNING")
     }
 
     override fun setTitle(title: CharSequence?) {
@@ -207,6 +397,7 @@ abstract class GameWindowActivity : BaseActivity() {
         if (::txtWindowTitle.isInitialized) {
             txtWindowTitle.text = title
         }
+        notifyState("RUNNING")
     }
 
     protected open fun overrideWindowMode(): WindowMode? = null
@@ -228,27 +419,40 @@ abstract class GameWindowActivity : BaseActivity() {
 
     private fun applyWindowMode(rootLayout: ViewGroup) {
         val card = rootLayout.findViewById<CardView>(R.id.cardWindowContainer) ?: return
-        val params = card.layoutParams as? ConstraintLayout.LayoutParams ?: return
+        val w = window ?: return
+
+        val cardParams = card.layoutParams as? ConstraintLayout.LayoutParams
+        cardParams?.let {
+            it.width = ViewGroup.LayoutParams.MATCH_PARENT
+            it.height = ViewGroup.LayoutParams.MATCH_PARENT
+            card.layoutParams = it
+        }
+
+        val displayMetrics = resources.displayMetrics
+        val wParams = w.attributes
 
         when (getWindowMode()) {
             WindowMode.MAXIMIZED -> {
-                params.width = 0
-                params.height = 0
-                params.matchConstraintPercentWidth = 1.0f
-                params.matchConstraintPercentHeight = 1.0f
+                wParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+                wParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+                wParams.gravity = Gravity.CENTER
+                wParams.x = 0
+                wParams.y = 0
                 card.cardElevation = 0f
                 card.radius = 0f
             }
             WindowMode.WINDOWED -> {
-                params.width = 0
-                params.height = 0
-                params.matchConstraintPercentWidth = 0.8f
-                params.matchConstraintPercentHeight = 0.9f
+                wParams.width = (displayMetrics.widthPixels * 0.8).toInt()
+                wParams.height = (displayMetrics.heightPixels * 0.9).toInt()
+                wParams.gravity = Gravity.CENTER
+                wParams.x = lastWindowX
+                wParams.y = lastWindowY
+                wParams.flags = wParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                 card.cardElevation = dp(12f)
                 card.radius = dp(8f)
             }
         }
-        card.layoutParams = params
+        w.attributes = wParams
     }
 
     protected fun showWindowModeChooser(
@@ -349,6 +553,16 @@ abstract class GameWindowActivity : BaseActivity() {
                 recreate()
             }
         }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.action == MotionEvent.ACTION_DOWN && !hasWindowFocus()) {
+            val intent = Intent(this, this::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            }
+            startActivity(intent)
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun dp(value: Float): Float = value * resources.displayMetrics.density

@@ -196,6 +196,16 @@ class FileExplorerActivity : GameWindowActivity() {
             popup.show()
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val startPath = intent.getStringExtra("startPath") ?: filesDir.absolutePath
+        rootDir = File(startPath)
+        isInternalRoot = isInternalRootPath(rootDir)
+        binding.btnSystemFiles.visibility = if (isInternalRoot) View.VISIBLE else View.GONE
+        viewModel.loadDirectory(rootDir.absolutePath)
+    }
     
     private fun updateActionUI() {
         val selectionCount = fileAdapter.getSelectedCount()

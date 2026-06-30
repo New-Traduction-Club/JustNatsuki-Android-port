@@ -25,14 +25,13 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
-            <!-- Header -->
             <LinearLayout
                 android:id="@+id/headerLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:paddingHorizontal="16dp"
-                android:paddingVertical="12dp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="4dp"
                 android:gravity="center_vertical"
                 android:background="@color/colorWindowHeaderBackground">
 
@@ -43,17 +42,17 @@
                     android:layout_weight="1"
                     android:text="Window Title"
                     android:textColor="@color/colorPrimary"
-                    android:textSize="18sp"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/btnWindowMinimize"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:layout_marginEnd="6dp"
                     android:text="—"
                     android:textColor="@color/colorPrimary"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:gravity="center"
                     android:clickable="true"
@@ -62,26 +61,25 @@
 
                 <TextView
                     android:id="@+id/btnWindowMaximize"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:layout_marginEnd="6dp"
                     android:text="▢"
                     android:textColor="@color/colorPrimary"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:gravity="center"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="@drawable/bg_close_button" />
 
-                <!-- Close button with pink square frame -->
                 <TextView
                     android:id="@+id/btnWindowClose"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:text="X"
                     android:textColor="@color/colorPrimary"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:gravity="center"
                     android:clickable="true"
@@ -93,22 +91,20 @@
                 android:id="@+id/windowHeaderDivider"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/colorDivider" /> <!-- very light pink separator -->
+                android:background="@color/colorDivider" />
 
-            <!-- Child Content Container -->
             <FrameLayout
                 android:id="@+id/windowContent"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:background="@color/colorWindowContentBackground" /> <!-- slight off-white paper color -->
+                android:background="@color/colorWindowContentBackground" />
 
-            <!-- Thick Pink Footer Bar -->
             <View
                 android:id="@+id/footerBar"
                 android:layout_width="match_parent"
                 android:layout_height="24dp"
-                android:background="@color/colorWindowFooter" /> <!-- distinct pink bar -->
+                android:background="@color/colorWindowFooter" />
 
         </LinearLayout>
 

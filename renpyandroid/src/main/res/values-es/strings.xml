@@ -454,4 +454,11 @@
     <!-- Toolbox -->
     <string name="toolbox_title">Toolbox</string>
     <string name="tool_virtual_keyboard">Teclado Virtual</string>
+
+    <string name="btn_start">Inicio</string>
+    <string name="toolbox_swipe_tip">Consejo: Desliza desde el borde izquierdo para abrir la Toolbox</string>
+    <string name="tool_window_controller">Ventana</string>
+    <string name="renpy_window_mode_title">Modo de Ventana</string>
+    <string name="renpy_window_mode_windowed">Ventana</string>
+    <string name="renpy_window_mode_fullscreen">Pantalla completa</string>
 </resources>
