@@ -5,6 +5,8 @@ import android.content.Intent
 
 object ActiveActivityRegistry {
     val activeActivities: MutableSet<String> = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    @Volatile
+    var currentActivity: android.app.Activity? = null
 }
 
 object DesktopWindowManager {

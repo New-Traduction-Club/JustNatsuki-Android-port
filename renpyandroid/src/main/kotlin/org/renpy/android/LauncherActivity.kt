@@ -43,6 +43,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.lifecycleScope
 import android.app.ActivityManager
 import android.animation.ValueAnimator
+import android.widget.ImageView
+import android.widget.ImageButton
+import android.widget.FrameLayout
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
 import android.annotation.SuppressLint
 import android.view.animation.LinearInterpolator
 import android.graphics.Bitmap
@@ -127,6 +132,25 @@ class LauncherActivity : BaseActivity() {
         val name: String,
         var state: String
     )
+
+    private var notificationAdapter: NotificationAdapter? = null
+
+    private val desktopNotificationReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "org.renpy.android.ACTION_NEW_DESKTOP_NOTIFICATION") {
+                val title = intent.getStringExtra("title") ?: "Natsuki"
+                val message = intent.getStringExtra("message") ?: ""
+                val imagePath = intent.getStringExtra("image_path")
+
+                val notification = NotificationHistoryManager.addNotification(context, title, message, imagePath)
+
+                updateNotificationBadge()
+                notificationAdapter?.updateItems(NotificationHistoryManager.getNotifications(context))
+
+                showNotificationToast(title, message, imagePath)
+            }
+        }
+    }
 
     private val windowStateReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context, intent: android.content.Intent) {
@@ -316,6 +340,24 @@ class LauncherActivity : BaseActivity() {
         setupEdgeToEdgeInsets()
         isUiInitialized = true
 
+        (applicationContext as android.app.Application).registerActivityLifecycleCallbacks(
+            object : android.app.Application.ActivityLifecycleCallbacks {
+                override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityStarted(activity: android.app.Activity) {}
+                override fun onActivityResumed(activity: android.app.Activity) {
+                    ActiveActivityRegistry.currentActivity = activity
+                }
+                override fun onActivityPaused(activity: android.app.Activity) {
+                    if (ActiveActivityRegistry.currentActivity === activity) {
+                        ActiveActivityRegistry.currentActivity = null
+                    }
+                }
+                override fun onActivityStopped(activity: android.app.Activity) {}
+                override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: Bundle) {}
+                override fun onActivityDestroyed(activity: android.app.Activity) {}
+            }
+        )
+
         SoundEffects.initialize(this)
         
         setupObservers()
@@ -336,6 +378,36 @@ class LauncherActivity : BaseActivity() {
         } else {
             registerReceiver(windowStateReceiver, filter)
         }
+
+        val notifFilter = android.content.IntentFilter("org.renpy.android.ACTION_NEW_DESKTOP_NOTIFICATION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(desktopNotificationReceiver, notifFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(desktopNotificationReceiver, notifFilter)
+        }
+
+        val rvLayoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        binding.rvNotifications.layoutManager = rvLayoutManager
+        notificationAdapter = NotificationAdapter(emptyList()) { item ->
+            NotificationHistoryManager.deleteNotification(this, item.id)
+            notificationAdapter?.updateItems(NotificationHistoryManager.getNotifications(this))
+            updateNotificationBadge()
+        }
+        binding.rvNotifications.adapter = notificationAdapter
+
+        binding.btnClearAllNotifications.setOnClickListener {
+            SoundEffects.playClick(this)
+            NotificationHistoryManager.clearAll(this)
+            notificationAdapter?.updateItems(emptyList())
+            updateNotificationBadge()
+        }
+
+        binding.btnNotificationCenter.setOnClickListener {
+            SoundEffects.playClick(this)
+            toggleNotificationCenter()
+        }
+
+        updateNotificationBadge()
 
         binding.btnStartMenu.setOnClickListener {
             SoundEffects.playClick(this)
@@ -504,6 +576,11 @@ class LauncherActivity : BaseActivity() {
         }
         try {
             unregisterReceiver(windowStateReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
+        try {
+            unregisterReceiver(desktopNotificationReceiver)
         } catch (e: Exception) {
             // Ignore if not registered
         }
@@ -1287,6 +1364,123 @@ class LauncherActivity : BaseActivity() {
             langFile.createNewFile()
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun updateNotificationBadge() {
+        val unreadCount = NotificationHistoryManager.getUnreadCount(this)
+        if (unreadCount > 0) {
+            binding.txtNotificationBadge.text = unreadCount.toString()
+            binding.txtNotificationBadge.visibility = View.VISIBLE
+        } else {
+            binding.txtNotificationBadge.visibility = View.GONE
+        }
+
+        // Also update the empty state text inside the panel
+        val notifications = NotificationHistoryManager.getNotifications(this)
+        if (notifications.isEmpty()) {
+            binding.txtNoNotifications.visibility = View.VISIBLE
+            binding.rvNotifications.visibility = View.GONE
+        } else {
+            binding.txtNoNotifications.visibility = View.GONE
+            binding.rvNotifications.visibility = View.VISIBLE
+        }
+    }
+
+    private fun toggleNotificationCenter() {
+        val adapter = notificationAdapter ?: return
+        if (binding.notificationCenterPanel.visibility == View.VISIBLE) {
+            binding.notificationCenterPanel.animate()
+                .translationY(binding.notificationCenterPanel.height.toFloat())
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction { binding.notificationCenterPanel.visibility = View.GONE }
+                .start()
+        } else {
+            NotificationHistoryManager.markAllAsRead(this)
+            updateNotificationBadge()
+            adapter.updateItems(NotificationHistoryManager.getNotifications(this))
+
+            binding.notificationCenterPanel.visibility = View.VISIBLE
+            binding.notificationCenterPanel.alpha = 0f
+            binding.notificationCenterPanel.post {
+                binding.notificationCenterPanel.translationY = binding.notificationCenterPanel.height.toFloat()
+                binding.notificationCenterPanel.animate()
+                    .translationY(0f)
+                    .alpha(1f)
+                    .setDuration(220)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+            }
+        }
+    }
+
+    private fun showNotificationToast(title: String, message: String, imagePath: String?) {
+        val activeActivity = ActiveActivityRegistry.currentActivity
+        val targetActivity: android.app.Activity = if (activeActivity != null && !activeActivity.isFinishing && 
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !activeActivity.isDestroyed)) {
+            activeActivity
+        } else {
+            this
+        }
+        DesktopNotificationUI.showNotificationToast(targetActivity, title, message, imagePath)
+    }
+
+    private inner class NotificationAdapter(
+        private var items: List<DesktopNotification>,
+        private val onDismiss: (DesktopNotification) -> Unit
+    ) : RecyclerView.Adapter<NotificationAdapter.ViewHolder>() {
+
+        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val imgAvatar: ImageView = view.findViewById(R.id.imgNotifAvatar)
+            val txtTitle: TextView = view.findViewById(R.id.txtNotifTitle)
+            val txtMessage: TextView = view.findViewById(R.id.txtNotifMessage)
+            val txtTime: TextView = view.findViewById(R.id.txtNotifTime)
+            val btnDismiss: ImageButton = view.findViewById(R.id.btnDismissNotif)
+            val divider: View = view.findViewById(R.id.dividerLine)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = layoutInflater.inflate(R.layout.item_desktop_notification, parent, false)
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val item = items[position]
+            holder.txtTitle.text = item.title
+            holder.txtMessage.text = item.message
+            
+            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+            holder.txtTime.text = sdf.format(Date(item.timestamp))
+
+            if (!item.imagePath.isNullOrEmpty()) {
+                val file = File(item.imagePath)
+                if (file.exists()) {
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                    if (bitmap != null) {
+                        holder.imgAvatar.setImageBitmap(bitmap)
+                    } else {
+                        holder.imgAvatar.setImageResource(R.drawable.ic_notifications)
+                    }
+                } else {
+                    holder.imgAvatar.setImageResource(R.drawable.ic_notifications)
+                }
+            } else {
+                holder.imgAvatar.setImageResource(R.drawable.ic_notifications)
+            }
+
+            holder.btnDismiss.setOnClickListener {
+                onDismiss(item)
+            }
+
+            holder.divider.visibility = if (position == itemCount - 1) View.GONE else View.VISIBLE
+        }
+
+        override fun getItemCount(): Int = items.size
+
+        fun updateItems(newItems: List<DesktopNotification>) {
+            items = newItems
+            notifyDataSetChanged()
         }
     }
 

@@ -446,4 +446,12 @@
     <string name="renpy_window_mode_title">Game Window Mode</string>
     <string name="renpy_window_mode_windowed">Windowed</string>
     <string name="renpy_window_mode_fullscreen">Fullscreen</string>
+    
+    <string name="notification_title_notifications">Notifications</string>
+    <string name="notification_clear_all">Clear all</string>
+    <string name="notification_no_new_notifications">No new notifications</string>
+    <string name="game_notification_channel_name">JN Notifications</string>
+    <string name="game_notification_channel_desc">Notifications from Natsuki</string>
+    <string name="game_notification_default_title">Natsuki</string>
+    <string name="game_notification_default_message">Natsuki is waiting...</string>
 </resources>

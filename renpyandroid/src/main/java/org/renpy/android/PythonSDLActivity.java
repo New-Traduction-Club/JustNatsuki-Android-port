@@ -93,6 +93,49 @@ public class PythonSDLActivity extends SDLActivity {
         }
     };
 
+    private final BroadcastReceiver mNotificationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("org.renpy.android.ACTION_NEW_DESKTOP_NOTIFICATION".equals(intent.getAction())) {
+                boolean isWindowed = false;
+                boolean isMaximized = false;
+                if (mWindowDecorator != null) {
+                    isWindowed = mWindowDecorator.isWindowedMode();
+                    if (isWindowed) {
+                        android.view.Window w = getWindow();
+                        if (w != null) {
+                            android.view.WindowManager.LayoutParams params = w.getAttributes();
+                            if (params != null) {
+                                isMaximized = params.width == android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                            }
+                        }
+                    }
+                    if (mWindowDecorator.isWindowMinimizedState()) {
+                        return;
+                    }
+                }
+
+                boolean shouldShowOnGame = !isWindowed || isMaximized;
+                if (!shouldShowOnGame) {
+                    return;
+                }
+
+                String title = intent.getStringExtra("title");
+                if (title == null) title = context.getString(R.string.game_notification_default_title);
+                String message = intent.getStringExtra("message");
+                if (message == null) message = "";
+                String imagePath = intent.getStringExtra("image_path");
+                
+                DesktopNotificationUI.INSTANCE.showNotificationToast(
+                    PythonSDLActivity.this,
+                    title,
+                    message,
+                    imagePath
+                );
+            }
+        }
+    };
+
     /**
      * The layout that contains the SDL view. VideoPlayer uses this to add
      * its own view on on top of the SDL view.
@@ -453,6 +496,13 @@ public class PythonSDLActivity extends SDLActivity {
             registerReceiver(mCommandReceiver, filter);
         }
 
+        IntentFilter notifFilter = new IntentFilter("org.renpy.android.ACTION_NEW_DESKTOP_NOTIFICATION");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mNotificationReceiver, notifFilter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(mNotificationReceiver, notifFilter);
+        }
+
         Log.v("python", "onCreate() finished, mLayout initialized");
     }
 
@@ -505,6 +555,9 @@ public class PythonSDLActivity extends SDLActivity {
         }
         try {
             unregisterReceiver(mCommandReceiver);
+        } catch (Exception e) {}
+        try {
+            unregisterReceiver(mNotificationReceiver);
         } catch (Exception e) {}
 
         DiscordRpcManager.stop();

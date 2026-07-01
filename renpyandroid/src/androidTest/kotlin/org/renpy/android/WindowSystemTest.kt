@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.TextView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -270,5 +271,114 @@ class WindowSystemTest {
             }
         }
         subDir.delete()
+    }
+
+    @Test
+    fun testDesktopNotifications() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        
+        // Clear previous notification history
+        NotificationHistoryManager.clearAll(context)
+        assertEquals(0, NotificationHistoryManager.getUnreadCount(context))
+
+        // Pre-set window mode preference to prevent setup dialog
+        val prefs = context.getSharedPreferences(BaseActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(BaseActivity.KEY_WINDOW_MODE, "windowed").apply()
+
+        val appPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        appPrefs.edit()
+            .putBoolean("is_setup_completed", true)
+            .putBoolean("is_first_launch", false)
+            .putBoolean("setup_language_confirmed", true)
+            .apply()
+
+        ActivityScenario.launch(LauncherActivity::class.java).use { scenario ->
+            SystemClock.sleep(200)
+
+            scenario.onActivity { activity ->
+                // Verify initial tray state
+                val badge = activity.findViewById<TextView>(R.id.txtNotificationBadge)
+                assertEquals(View.GONE, badge.visibility)
+
+                val emptyText = activity.findViewById<TextView>(R.id.txtNoNotifications)
+                val rv = activity.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvNotifications)
+                val panel = activity.findViewById<View>(R.id.notificationCenterPanel)
+                
+                assertEquals(View.GONE, panel.visibility)
+            }
+
+            // Trigger a desktop notification via JNI bridge
+            NotificationWorker.showDesktopNotification(context, "Natsuki", "Dummy message", null)
+            SystemClock.sleep(400) // Allow receiver to process broadcast
+
+            scenario.onActivity { activity ->
+                // Verify badge is updated to 1
+                val badge = activity.findViewById<TextView>(R.id.txtNotificationBadge)
+                assertEquals(View.VISIBLE, badge.visibility)
+                assertEquals("1", badge.text.toString())
+
+                // Verify toast container has 1 child
+                val toastContainer = activity.findViewById<android.widget.LinearLayout>(R.id.toastContainer)
+                assertEquals(1, toastContainer.childCount)
+
+                val toastView = toastContainer.getChildAt(0)
+                val titleView = toastView.findViewById<TextView>(R.id.toastTitle)
+                val msgView = toastView.findViewById<TextView>(R.id.toastMessage)
+                assertEquals("Natsuki", titleView.text.toString())
+                assertEquals("Dummy message", msgView.text.toString())
+            }
+
+            // Trigger 2 more notifications to test stack and badge
+            NotificationWorker.showDesktopNotification(context, "Natsuki", "Second message", null)
+            NotificationWorker.showDesktopNotification(context, "Natsuki", "Third message", null)
+            SystemClock.sleep(400)
+
+            scenario.onActivity { activity ->
+                val badge = activity.findViewById<TextView>(R.id.txtNotificationBadge)
+                assertEquals("3", badge.text.toString())
+
+                val toastContainer = activity.findViewById<android.widget.LinearLayout>(R.id.toastContainer)
+                // Stacking limit is max 3
+                assertTrue(toastContainer.childCount <= 3)
+
+                // Toggle Notification Center Panel (Click the tray button)
+                val btnCenter = activity.findViewById<View>(R.id.btnNotificationCenter)
+                btnCenter.performClick()
+            }
+
+            SystemClock.sleep(300) // Allow panel animations to run
+
+            scenario.onActivity { activity ->
+                val panel = activity.findViewById<View>(R.id.notificationCenterPanel)
+                assertEquals(View.VISIBLE, panel.visibility)
+
+                // Verify badge count is reset/hidden since panel is opened (marked read)
+                val badge = activity.findViewById<TextView>(R.id.txtNotificationBadge)
+                assertEquals(View.GONE, badge.visibility)
+
+                // Verify list has 3 items
+                val rv = activity.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvNotifications)
+                assertEquals(View.VISIBLE, rv.visibility)
+                assertNotNull(rv.adapter)
+                assertEquals(3, rv.adapter?.itemCount)
+
+                // Clear all notifications
+                val btnClearAll = activity.findViewById<View>(R.id.btnClearAllNotifications)
+                btnClearAll.performClick()
+            }
+
+            SystemClock.sleep(200)
+
+            scenario.onActivity { activity ->
+                // Verify list is empty and placeholder is visible
+                val rv = activity.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvNotifications)
+                assertEquals(View.GONE, rv.visibility)
+                
+                val emptyText = activity.findViewById<TextView>(R.id.txtNoNotifications)
+                assertEquals(View.VISIBLE, emptyText.visibility)
+                
+                activity.finish()
+            }
+        }
     }
 }

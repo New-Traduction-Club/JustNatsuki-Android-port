@@ -462,4 +462,12 @@
     <string name="renpy_window_mode_title">Modo de Janela</string>
     <string name="renpy_window_mode_windowed">Janela</string>
     <string name="renpy_window_mode_fullscreen">Tela cheia</string>
+
+    <string name="notification_title_notifications">Notificações</string>
+    <string name="notification_clear_all">Limpar tudo</string>
+    <string name="notification_no_new_notifications">Sem notificações</string>
+    <string name="game_notification_channel_name">JN Notifications</string>
+    <string name="game_notification_channel_desc">Notificações da Natsuki</string>
+    <string name="game_notification_default_title">Natsuki</string>
+    <string name="game_notification_default_message">Natsuki está esperando...</string>
 </resources>
