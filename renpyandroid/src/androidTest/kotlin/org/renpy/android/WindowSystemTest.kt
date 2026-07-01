@@ -71,6 +71,10 @@ class WindowSystemTest {
 
             scenario.onActivity { activity ->
                 assertTrue(activity.isWindowMinimizedState)
+                val card = activity.findViewById<View>(R.id.cardWindowContainer)
+                assertEquals(0f, card.alpha, 0.01f)
+                assertEquals(0.1f, card.scaleX, 0.01f)
+                assertEquals(0.1f, card.scaleY, 0.01f)
             }
 
             DesktopWindowManager.sendCommand(context, TestActivity::class.java.name, "RESTORE")
@@ -79,6 +83,10 @@ class WindowSystemTest {
 
             scenario.onActivity { activity ->
                 assertFalse(activity.isWindowMinimizedState)
+                val card = activity.findViewById<View>(R.id.cardWindowContainer)
+                assertEquals(1f, card.alpha, 0.01f)
+                assertEquals(1f, card.scaleX, 0.01f)
+                assertEquals(1f, card.scaleY, 0.01f)
                 activity.finish()
             }
         }

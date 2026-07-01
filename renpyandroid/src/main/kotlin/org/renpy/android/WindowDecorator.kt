@@ -206,14 +206,73 @@ class WindowDecorator(private val activity: Activity) {
         prefs.edit().putString("renpy_window_mode", modeStr).apply()
 
         activity.runOnUiThread {
-            applyWindowDimensions()
+            val root = windowRootLayout ?: return@runOnUiThread
+            val card = root.findViewById<CardView>(R.id.cardWindowContainer) ?: return@runOnUiThread
+            val w = activity.window ?: return@runOnUiThread
+            val displayMetrics = activity.resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+
+            card.animate().cancel()
+
             if (windowed) {
-                notifyState("RUNNING")
+                // Fullscreen to Windowed
+                val (targetWidth, targetHeight) = getWindowedDimensions(displayMetrics)
+                
+                card.pivotX = card.width / 2f
+                card.pivotY = card.height / 2f
+                
+                val endScaleX = targetWidth.toFloat() / Math.max(1, screenWidth)
+                val endScaleY = targetHeight.toFloat() / Math.max(1, screenHeight)
+
+                card.animate()
+                    .scaleX(endScaleX)
+                    .scaleY(endScaleY)
+                    .translationX(lastWindowX.toFloat())
+                    .translationY(lastWindowY.toFloat())
+                    .setDuration(300)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .withEndAction {
+                        applyWindowDimensions()
+                        card.scaleX = 1f
+                        card.scaleY = 1f
+                        card.translationX = 0f
+                        card.translationY = 0f
+                        notifyState("RUNNING")
+                    }
+                    .start()
             } else {
+                // Windowed to Fullscreen
+                val (targetWidth, targetHeight) = getWindowedDimensions(displayMetrics)
+                
+                val wParams = w.attributes
+                wParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+                wParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+                wParams.x = 0
+                wParams.y = 0
+                w.attributes = wParams
+
+                card.scaleX = targetWidth.toFloat() / Math.max(1, screenWidth)
+                card.scaleY = targetHeight.toFloat() / Math.max(1, screenHeight)
+                card.translationX = lastWindowX.toFloat()
+                card.translationY = lastWindowY.toFloat()
+
                 if (activity is PythonSDLActivity) {
                     activity.applyImmersiveFullscreen()
                 }
-                notifyState("DESTROYED")
+
+                card.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .translationX(0f)
+                    .translationY(0f)
+                    .setDuration(300)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .withEndAction {
+                        applyWindowDimensions()
+                        notifyState("DESTROYED")
+                    }
+                    .start()
             }
         }
     }
@@ -228,19 +287,33 @@ class WindowDecorator(private val activity: Activity) {
             copyFrom(w.attributes)
         }
 
-        val card = root.findViewById<View>(R.id.cardWindowContainer)
-        card?.visibility = View.GONE
+        val card = root.findViewById<CardView>(R.id.cardWindowContainer) ?: return
+        card.animate().cancel()
+        card.pivotX = card.width / 2f
+        card.pivotY = card.height.toFloat()
 
-        val params = w.attributes
-        params.width = 1
-        params.height = 1
-        params.gravity = Gravity.TOP or Gravity.LEFT
-        params.x = 0
-        params.y = 0
-        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-        w.attributes = params
+        card.animate()
+            .scaleX(0.1f)
+            .scaleY(0.1f)
+            .translationY(card.height * 0.5f)
+            .alpha(0f)
+            .setDuration(250)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                card.visibility = View.GONE
+                
+                val params = w.attributes
+                params.width = 1
+                params.height = 1
+                params.gravity = Gravity.TOP or Gravity.LEFT
+                params.x = 0
+                params.y = 0
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                w.attributes = params
 
-        notifyState("MINIMIZED")
+                notifyState("MINIMIZED")
+            }
+            .start()
     }
 
     fun restoreWindow() {
@@ -250,8 +323,12 @@ class WindowDecorator(private val activity: Activity) {
 
         isWindowMinimized = false
 
-        val card = root.findViewById<View>(R.id.cardWindowContainer)
-        card?.visibility = View.VISIBLE
+        val card = root.findViewById<CardView>(R.id.cardWindowContainer) ?: return
+        card.animate().cancel()
+        card.visibility = View.VISIBLE
+        card.alpha = 0f
+        card.scaleX = 0.1f
+        card.scaleY = 0.1f
 
         val params = w.attributes
         preMinimizeParams?.let {
@@ -264,12 +341,27 @@ class WindowDecorator(private val activity: Activity) {
         }
         w.attributes = params
 
-        val intent = Intent(activity, activity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        }
-        activity.startActivity(intent)
+        card.post {
+            card.pivotX = card.width / 2f
+            card.pivotY = card.height.toFloat()
+            card.translationY = card.height * 0.5f
 
-        notifyState("RUNNING")
+            card.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .alpha(1f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .withEndAction {
+                    val intent = Intent(activity, activity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    }
+                    activity.startActivity(intent)
+                    notifyState("RUNNING")
+                }
+                .start()
+        }
     }
 
     fun toggleMaximize() {

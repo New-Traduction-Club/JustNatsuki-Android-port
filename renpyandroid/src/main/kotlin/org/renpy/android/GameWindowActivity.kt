@@ -287,19 +287,33 @@ abstract class GameWindowActivity : BaseActivity() {
             copyFrom(w.attributes)
         }
 
-        val card = root.findViewById<View>(R.id.cardWindowContainer)
-        card?.visibility = View.GONE
+        val card = root.findViewById<CardView>(R.id.cardWindowContainer) ?: return
+        card.animate().cancel()
+        card.pivotX = card.width / 2f
+        card.pivotY = card.height.toFloat()
 
-        val params = w.attributes
-        params.width = 1
-        params.height = 1
-        params.gravity = Gravity.TOP or Gravity.LEFT
-        params.x = 0
-        params.y = 0
-        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-        w.attributes = params
+        card.animate()
+            .scaleX(0.1f)
+            .scaleY(0.1f)
+            .translationY(card.height * 0.5f)
+            .alpha(0f)
+            .setDuration(250)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                card.visibility = View.GONE
+                
+                val params = w.attributes
+                params.width = 1
+                params.height = 1
+                params.gravity = Gravity.TOP or Gravity.LEFT
+                params.x = 0
+                params.y = 0
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                w.attributes = params
 
-        notifyState("MINIMIZED")
+                notifyState("MINIMIZED")
+            }
+            .start()
     }
 
     private fun restoreWindow() {
@@ -309,8 +323,12 @@ abstract class GameWindowActivity : BaseActivity() {
 
         isWindowMinimized = false
 
-        val card = root.findViewById<View>(R.id.cardWindowContainer)
-        card?.visibility = View.VISIBLE
+        val card = root.findViewById<CardView>(R.id.cardWindowContainer) ?: return
+        card.animate().cancel()
+        card.visibility = View.VISIBLE
+        card.alpha = 0f
+        card.scaleX = 0.1f
+        card.scaleY = 0.1f
 
         val params = w.attributes
         preMinimizeParams?.let {
@@ -323,12 +341,27 @@ abstract class GameWindowActivity : BaseActivity() {
         }
         w.attributes = params
 
-        val intent = Intent(this, this::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        }
-        startActivity(intent)
+        card.post {
+            card.pivotX = card.width / 2f
+            card.pivotY = card.height.toFloat()
+            card.translationY = card.height * 0.5f
 
-        notifyState("RUNNING")
+            card.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .alpha(1f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .withEndAction {
+                    val intent = Intent(this, this::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    }
+                    startActivity(intent)
+                    notifyState("RUNNING")
+                }
+                .start()
+        }
     }
 
     private fun toggleMaximize() {
