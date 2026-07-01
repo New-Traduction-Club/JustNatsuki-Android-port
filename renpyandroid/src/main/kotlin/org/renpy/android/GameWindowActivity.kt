@@ -455,9 +455,20 @@ abstract class GameWindowActivity : BaseActivity() {
                 card.radius = 0f
             }
             WindowMode.WINDOWED -> {
-                wParams.width = (displayMetrics.widthPixels * 0.8).toInt()
-                wParams.height = (displayMetrics.heightPixels * 0.9).toInt()
+                val minSize = (200 * displayMetrics.density).toInt()
+                val targetWidth = Math.max(minSize, (displayMetrics.widthPixels * 0.8).toInt())
+                val targetHeight = Math.max(minSize, (displayMetrics.heightPixels * 0.9).toInt())
+                wParams.width = targetWidth
+                wParams.height = targetHeight
                 wParams.gravity = Gravity.CENTER
+
+                val halfScreenWidth = displayMetrics.widthPixels / 2
+                val halfScreenHeight = displayMetrics.heightPixels / 2
+                val minY = (targetHeight / 2) - halfScreenHeight
+
+                lastWindowX = lastWindowX.coerceIn(-halfScreenWidth, halfScreenWidth)
+                lastWindowY = lastWindowY.coerceIn(minY, halfScreenHeight)
+
                 wParams.x = lastWindowX
                 wParams.y = lastWindowY
                 wParams.flags = wParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL

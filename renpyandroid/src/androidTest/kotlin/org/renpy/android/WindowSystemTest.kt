@@ -135,4 +135,43 @@ class WindowSystemTest {
             }
         }
     }
+
+    @Test
+    fun testWindowClampingOnConfigurationChange() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences(BaseActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(BaseActivity.KEY_WINDOW_MODE, "windowed").apply()
+
+        ActivityScenario.launch(TestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val displayMetrics = activity.resources.displayMetrics
+                val halfWidth = displayMetrics.widthPixels / 2
+                val halfHeight = displayMetrics.heightPixels / 2
+
+                val fieldX = GameWindowActivity::class.java.getDeclaredField("lastWindowX")
+                fieldX.isAccessible = true
+                val fieldY = GameWindowActivity::class.java.getDeclaredField("lastWindowY")
+                fieldY.isAccessible = true
+
+                fieldX.set(activity, 99999)
+                fieldY.set(activity, 99999)
+
+                val fieldRoot = GameWindowActivity::class.java.getDeclaredField("windowRootLayout")
+                fieldRoot.isAccessible = true
+                val rootLayout = fieldRoot.get(activity) as android.view.ViewGroup
+
+                val methodApply = GameWindowActivity::class.java.getDeclaredMethod("applyWindowMode", android.view.ViewGroup::class.java)
+                methodApply.isAccessible = true
+                methodApply.invoke(activity, rootLayout)
+
+                val clampedX = fieldX.get(activity) as Int
+                val clampedY = fieldY.get(activity) as Int
+
+                assertTrue("x must be clamped to halfScreenWidth: $clampedX <= $halfWidth", clampedX <= halfWidth)
+                assertTrue("y must be clamped to halfScreenHeight: $clampedY <= $halfHeight", clampedY <= halfHeight)
+                
+                activity.finish()
+            }
+        }
+    }
 }

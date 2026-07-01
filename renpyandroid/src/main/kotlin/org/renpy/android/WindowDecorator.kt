@@ -123,11 +123,15 @@ class WindowDecorator(private val activity: Activity) {
     }
 
     private fun getWindowedDimensions(displayMetrics: android.util.DisplayMetrics): Pair<Int, Int> {
-        val targetHeight = (displayMetrics.heightPixels * 0.85).toInt()
-        var targetWidth = (targetHeight * 16.0 / 9.0).toInt()
-        if (targetWidth > displayMetrics.widthPixels * 0.9) {
-            targetWidth = (displayMetrics.widthPixels * 0.9).toInt()
-            val adjustedHeight = (targetWidth * 9.0 / 16.0).toInt()
+        val minSize = (200 * displayMetrics.density).toInt()
+        val screenWidth = Math.max(minSize, displayMetrics.widthPixels)
+        val screenHeight = Math.max(minSize, displayMetrics.heightPixels)
+
+        val targetHeight = Math.max(minSize, (screenHeight * 0.85).toInt())
+        var targetWidth = Math.max(minSize, (targetHeight * 16.0 / 9.0).toInt())
+        if (targetWidth > screenWidth * 0.9) {
+            targetWidth = Math.max(minSize, (screenWidth * 0.9).toInt())
+            val adjustedHeight = Math.max(minSize, (targetWidth * 9.0 / 16.0).toInt())
             return Pair(targetWidth, adjustedHeight)
         }
         return Pair(targetWidth, targetHeight)
@@ -160,6 +164,14 @@ class WindowDecorator(private val activity: Activity) {
             wParams.width = targetWidth
             wParams.height = targetHeight
             wParams.gravity = Gravity.CENTER
+
+            val halfScreenWidth = displayMetrics.widthPixels / 2
+            val halfScreenHeight = displayMetrics.heightPixels / 2
+            val minY = (targetHeight / 2) - halfScreenHeight
+
+            lastWindowX = lastWindowX.coerceIn(-halfScreenWidth, halfScreenWidth)
+            lastWindowY = lastWindowY.coerceIn(minY, halfScreenHeight)
+
             wParams.x = lastWindowX
             wParams.y = lastWindowY
             wParams.flags = wParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
