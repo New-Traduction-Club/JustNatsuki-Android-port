@@ -31,6 +31,8 @@ abstract class GameWindowActivity : BaseActivity() {
     private var lastWindowX = 0
     private var lastWindowY = 0
     private var isWindowMinimized = false
+    val isWindowMinimizedState: Boolean
+        get() = isWindowMinimized
     private var preMinimizeParams: WindowManager.LayoutParams? = null
 
     private val commandReceiver = object : android.content.BroadcastReceiver() {
@@ -251,8 +253,18 @@ abstract class GameWindowActivity : BaseActivity() {
                     val dx = event.rawX - startRawX
                     val dy = event.rawY - startRawY
                     
-                    params.x = initialX + dx.toInt()
-                    params.y = initialY + dy.toInt()
+                    val displayMetrics = resources.displayMetrics
+                    val halfScreenWidth = displayMetrics.widthPixels / 2
+                    val halfScreenHeight = displayMetrics.heightPixels / 2
+                    
+                    val newX = initialX + dx.toInt()
+                    val newY = initialY + dy.toInt()
+                    
+                    params.x = newX.coerceIn(-halfScreenWidth, halfScreenWidth)
+                    
+                    val windowHeight = if (params.height > 0) params.height else displayMetrics.heightPixels
+                    val minY = (windowHeight / 2) - halfScreenHeight
+                    params.y = newY.coerceIn(minY, halfScreenHeight)
                     
                     lastWindowX = params.x
                     lastWindowY = params.y
@@ -430,6 +442,7 @@ abstract class GameWindowActivity : BaseActivity() {
 
         val displayMetrics = resources.displayMetrics
         val wParams = w.attributes
+        w.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
 
         when (getWindowMode()) {
             WindowMode.MAXIMIZED -> {

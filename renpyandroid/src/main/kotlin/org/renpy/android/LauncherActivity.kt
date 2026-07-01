@@ -120,6 +120,7 @@ class LauncherActivity : BaseActivity() {
 
     private val runningApps = mutableMapOf<String, RunningAppInfo>()
     private var lastFocusedAppId: String? = null
+    private var renpyMonitorJob: kotlinx.coroutines.Job? = null
 
     data class RunningAppInfo(
         val id: String,
@@ -146,8 +147,31 @@ class LauncherActivity : BaseActivity() {
                     } else if (lastFocusedAppId == id) {
                         lastFocusedAppId = runningApps.keys.lastOrNull { runningApps[it]?.state == "RUNNING" }
                     }
+                    if (id == "org.renpy.android.PythonSDLActivity") {
+                        startRenpyProcessMonitoring()
+                    }
                 }
                 updateTaskbarApps()
+            }
+        }
+    }
+
+    private fun startRenpyProcessMonitoring() {
+        if (renpyMonitorJob?.isActive == true) return
+        renpyMonitorJob = lifecycleScope.launch {
+            val renpyProcessName = "$packageName:renpy"
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                if (!isProcessRunning(renpyProcessName)) {
+                    if (runningApps.containsKey("org.renpy.android.PythonSDLActivity")) {
+                        runningApps.remove("org.renpy.android.PythonSDLActivity")
+                        if (lastFocusedAppId == "org.renpy.android.PythonSDLActivity") {
+                            lastFocusedAppId = runningApps.keys.lastOrNull { runningApps[it]?.state == "RUNNING" }
+                        }
+                        updateTaskbarApps()
+                    }
+                    break
+                }
             }
         }
     }

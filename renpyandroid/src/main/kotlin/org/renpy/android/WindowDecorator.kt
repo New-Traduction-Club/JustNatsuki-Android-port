@@ -44,7 +44,11 @@ class WindowDecorator(private val activity: Activity) {
         footerBar?.visibility = View.GONE
 
         btnWindowClose.setOnClickListener {
-            activity.onBackPressed()
+            if (activity is org.libsdl.app.SDLActivity) {
+                org.libsdl.app.SDLActivity.nativeQuit()
+            } else {
+                activity.onBackPressed()
+            }
         }
 
         val btnWindowMinimize = root.findViewById<View>(R.id.btnWindowMinimize)
@@ -94,8 +98,18 @@ class WindowDecorator(private val activity: Activity) {
                     val dx = event.rawX - startRawX
                     val dy = event.rawY - startRawY
                     
-                    params.x = initialX + dx.toInt()
-                    params.y = initialY + dy.toInt()
+                    val displayMetrics = activity.resources.displayMetrics
+                    val halfScreenWidth = displayMetrics.widthPixels / 2
+                    val halfScreenHeight = displayMetrics.heightPixels / 2
+                    
+                    val newX = initialX + dx.toInt()
+                    val newY = initialY + dy.toInt()
+                    
+                    params.x = newX.coerceIn(-halfScreenWidth, halfScreenWidth)
+                    
+                    val windowHeight = if (params.height > 0) params.height else displayMetrics.heightPixels
+                    val minY = (windowHeight / 2) - halfScreenHeight
+                    params.y = newY.coerceIn(minY, halfScreenHeight)
                     
                     lastWindowX = params.x
                     lastWindowY = params.y
@@ -139,7 +153,7 @@ class WindowDecorator(private val activity: Activity) {
         val wParams = w.attributes
 
         if (isWindowedMode()) {
-            w.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+            w.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             headerLayout.visibility = View.VISIBLE
             headerDivider?.visibility = View.VISIBLE
             val (targetWidth, targetHeight) = getWindowedDimensions(displayMetrics)

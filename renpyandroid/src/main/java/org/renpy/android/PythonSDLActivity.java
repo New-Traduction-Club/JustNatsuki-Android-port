@@ -514,7 +514,12 @@ public class PythonSDLActivity extends SDLActivity {
             mStore.destroy();
         }
 
-        android.os.Process.killProcess(android.os.Process.myPid());
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        }, 200);
     }
 
     @Override
