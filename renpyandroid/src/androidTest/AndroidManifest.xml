@@ -5,5 +5,9 @@
             android:name="org.renpy.android.TestActivity"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:exported="true" />
+        <activity
+            android:name="org.renpy.android.TestFileExplorerActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:exported="true" />
     </application>
 </manifest>

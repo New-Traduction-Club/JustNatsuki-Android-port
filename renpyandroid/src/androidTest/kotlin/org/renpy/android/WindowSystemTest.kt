@@ -182,4 +182,93 @@ class WindowSystemTest {
             }
         }
     }
+
+    @Test
+    fun testFileExplorerDirectoryPreservation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val startDir = context.filesDir.absolutePath
+        
+        // Create a subfolder to navigate to
+        val subDir = java.io.File(context.filesDir, "test_subdir")
+        if (!subDir.exists()) {
+            subDir.mkdirs()
+        }
+
+        val prefs = context.getSharedPreferences(BaseActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(BaseActivity.KEY_WINDOW_MODE, "windowed").apply()
+
+        val scenario = ActivityScenario.launch(TestFileExplorerActivity::class.java)
+        try {
+            // Initialize rootDir and load the subfolder
+            scenario.onActivity { activity ->
+                val rootDirField = FileExplorerActivity::class.java.getDeclaredField("rootDir")
+                rootDirField.isAccessible = true
+                rootDirField.set(activity, java.io.File(startDir))
+
+                val delegateField = FileExplorerActivity::class.java.getDeclaredField("viewModel\$delegate")
+                delegateField.isAccessible = true
+                val lazyValue = delegateField.get(activity) as Lazy<*>
+                val viewModel = lazyValue.value as FileExplorerViewModel
+                
+                viewModel.loadDirectory(subDir.absolutePath)
+            }
+
+            // Sleep to let LiveData update
+            SystemClock.sleep(200)
+
+            // Verify navigate to subfolder worked
+            scenario.onActivity { activity ->
+                val delegateField = FileExplorerActivity::class.java.getDeclaredField("viewModel\$delegate")
+                delegateField.isAccessible = true
+                val lazyValue = delegateField.get(activity) as Lazy<*>
+                val viewModel = lazyValue.value as FileExplorerViewModel
+
+                assertEquals(subDir.absolutePath, viewModel.currentDir.value?.absolutePath)
+
+                // Call onNewIntent simulating restore
+                val restoreIntent = Intent(context, TestFileExplorerActivity::class.java)
+                activity.callOnNewIntent(restoreIntent)
+            }
+
+            // Sleep again
+            SystemClock.sleep(200)
+
+            // Verify current directory is preserved
+            scenario.onActivity { activity ->
+                val delegateField = FileExplorerActivity::class.java.getDeclaredField("viewModel\$delegate")
+                delegateField.isAccessible = true
+                val lazyValue = delegateField.get(activity) as Lazy<*>
+                val viewModel = lazyValue.value as FileExplorerViewModel
+
+                assertEquals(subDir.absolutePath, viewModel.currentDir.value?.absolutePath)
+
+                // Call onNewIntent simulating shortcut reset
+                val resetIntent = Intent(context, TestFileExplorerActivity::class.java).apply {
+                    putExtra("startPath", startDir)
+                }
+                activity.callOnNewIntent(resetIntent)
+            }
+
+            // Sleep again
+            SystemClock.sleep(200)
+
+            // Verify it resets
+            scenario.onActivity { activity ->
+                val delegateField = FileExplorerActivity::class.java.getDeclaredField("viewModel\$delegate")
+                delegateField.isAccessible = true
+                val lazyValue = delegateField.get(activity) as Lazy<*>
+                val viewModel = lazyValue.value as FileExplorerViewModel
+
+                assertEquals(startDir, viewModel.currentDir.value?.absolutePath)
+                activity.finish()
+            }
+        } finally {
+            try {
+                scenario.close()
+            } catch (e: AssertionError) {
+                // Suppress destruction timeout assertion error
+            }
+        }
+        subDir.delete()
+    }
 }

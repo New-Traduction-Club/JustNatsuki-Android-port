@@ -31,7 +31,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
-class FileExplorerActivity : GameWindowActivity() {
+open class FileExplorerActivity : GameWindowActivity() {
 
     companion object {
         private const val STATE_CURRENT_DIR_PATH = "state_current_dir_path"
@@ -200,11 +200,13 @@ class FileExplorerActivity : GameWindowActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val startPath = intent.getStringExtra("startPath") ?: filesDir.absolutePath
-        rootDir = File(startPath)
-        isInternalRoot = isInternalRootPath(rootDir)
-        binding.btnSystemFiles.visibility = if (isInternalRoot) View.VISIBLE else View.GONE
-        viewModel.loadDirectory(rootDir.absolutePath)
+        if (intent.hasExtra("startPath")) {
+            val startPath = intent.getStringExtra("startPath") ?: filesDir.absolutePath
+            rootDir = File(startPath)
+            isInternalRoot = isInternalRootPath(rootDir)
+            binding.btnSystemFiles.visibility = if (isInternalRoot) View.VISIBLE else View.GONE
+            viewModel.loadDirectory(rootDir.absolutePath)
+        }
     }
     
     private fun updateActionUI() {
