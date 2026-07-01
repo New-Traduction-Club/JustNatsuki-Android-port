@@ -128,6 +128,20 @@ class NotificationWorker(context: Context, params: WorkerParameters) : Worker(co
             message: String,
             imagePath: String?
         ) {
+            val sdlActivity = PythonSDLActivity.mActivity
+            val isPipActive = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && sdlActivity != null) {
+                sdlActivity.isInPictureInPictureMode
+            } else {
+                false
+            }
+
+            if (isPipActive) {
+                NotificationHistoryManager.addNotification(context, title, message, imagePath)
+
+                triggerNotification(context, title, message, imagePath)
+                return
+            }
+
             val intent = Intent("org.renpy.android.ACTION_NEW_DESKTOP_NOTIFICATION").apply {
                 setPackage(context.packageName)
                 putExtra("title", title)

@@ -754,8 +754,9 @@ public class PythonSDLActivity extends SDLActivity {
                 
                 builder.setAspectRatio(aspectRatio);
 
+                boolean isWindowed = mWindowDecorator != null && mWindowDecorator.isWindowedMode();
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(true);
+                    builder.setAutoEnterEnabled(!isWindowed);
                     builder.setSeamlessResizeEnabled(true);
                 }
 
@@ -769,6 +770,9 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 mPendingPictureInPictureEnter = true;
