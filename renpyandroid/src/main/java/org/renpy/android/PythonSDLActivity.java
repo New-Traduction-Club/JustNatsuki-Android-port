@@ -600,6 +600,11 @@ public class PythonSDLActivity extends SDLActivity {
             return;
         }
 
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            Log.v("python", "onStop() skipping wait, in windowed mode");
+            return;
+        }
+
         if (mPendingPictureInPictureEnter) {
             boolean inPictureInPicture = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
             if (!inPictureInPicture) {
@@ -867,6 +872,9 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (mWindowDecorator != null) {
+            mWindowDecorator.applyWindowDimensions();
+        }
         applyImmersiveFullscreen();
         mPendingPictureInPictureEnter = false;
         DiscordRpcManager.startIfEnabled(this);

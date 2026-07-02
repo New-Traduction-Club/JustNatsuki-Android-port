@@ -9,46 +9,55 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.LinearLayout
+import android.widget.PopupWindow
 import java.io.File
+import java.lang.ref.WeakReference
 
 /**
  * Encapsulated UI helpers for rendering desktop notification toasts on top of any active Activity.
  */
 object DesktopNotificationUI {
+    private var activePopupWindow: PopupWindow? = null
+    private var activeContainer: LinearLayout? = null
+    private var currentActivityRef: WeakReference<Activity>? = null
 
+    @Synchronized
     fun getOrCreateToastContainer(activity: Activity): ViewGroup {
-        var root: ViewGroup? = null
-        try {
-            val field = activity::class.java.getField("mFrameLayout")
-            root = field.get(activity) as? ViewGroup
-        } catch (e: Exception) {
+        if (activity is LauncherActivity) {
+            return activity.findViewById<ViewGroup>(R.id.toastContainer)
         }
-        
-        if (root == null) {
-            root = activity.findViewById<ViewGroup>(android.R.id.content)
-        }
-        
-        var container = root?.findViewById<ViewGroup>(R.id.toastContainer)
-        if (container == null && root != null) {
-            container = android.widget.LinearLayout(activity).apply {
+
+        val currentActivity = currentActivityRef?.get()
+        if (currentActivity != activity || activePopupWindow == null || activeContainer == null) {
+            try {
+                activePopupWindow?.dismiss()
+            } catch (e: Exception) {}
+
+            val container = LinearLayout(activity).apply {
                 id = R.id.toastContainer
-                orientation = android.widget.LinearLayout.VERTICAL
+                orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.BOTTOM
-                elevation = 16f * activity.resources.displayMetrics.density
-                
-                val params = android.widget.FrameLayout.LayoutParams(
-                    (320 * activity.resources.displayMetrics.density).toInt(),
-                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
-                    rightMargin = (16 * activity.resources.displayMetrics.density).toInt()
-                    bottomMargin = (8 * activity.resources.displayMetrics.density).toInt()
-                }
-                layoutParams = params
             }
-            root.addView(container)
+
+            val widthPx = (320 * activity.resources.displayMetrics.density).toInt()
+            val popup = PopupWindow(
+                container,
+                widthPx,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                false
+            ).apply {
+                isClippingEnabled = false
+                isTouchable = true
+                isOutsideTouchable = true
+            }
+
+            activeContainer = container
+            activePopupWindow = popup
+            currentActivityRef = WeakReference(activity)
         }
-        return container ?: root!!
+
+        return activeContainer!!
     }
 
     fun showNotificationToast(activity: Activity, title: String, message: String, imagePath: String?) {
@@ -83,6 +92,24 @@ object DesktopNotificationUI {
                 }
 
                 container.addView(toastView)
+
+                if (activity !is LauncherActivity) {
+                    val popup = activePopupWindow
+                    if (popup != null && !popup.isShowing) {
+                        val root = activity.window.decorView
+                        val xOffset = (16 * activity.resources.displayMetrics.density).toInt()
+                        val yOffset = (8 * activity.resources.displayMetrics.density).toInt()
+                        
+                        popup.showAtLocation(
+                            root,
+                            android.view.Gravity.BOTTOM or android.view.Gravity.END,
+                            xOffset,
+                            yOffset
+                        )
+                    }
+                } else {
+                    container.bringToFront()
+                }
 
                 val density = activity.resources.displayMetrics.density
                 toastView.translationX = 340f * density
@@ -119,6 +146,13 @@ object DesktopNotificationUI {
             .setDuration(250)
             .withEndAction {
                 container.removeView(view)
+                if (container == activeContainer && container.childCount == 0) {
+                    try {
+                        activePopupWindow?.dismiss()
+                    } catch (e: Exception) {}
+                    activePopupWindow = null
+                    activeContainer = null
+                }
             }
             .start()
     }
