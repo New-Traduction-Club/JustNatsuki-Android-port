@@ -306,6 +306,7 @@ public class SDLActivity extends Activity {
      *  to 'true' during the call to onPause (in a usual scenario).
      */
     public static void handlePause() {
+        org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.handlePause() - mIsPaused=" + mIsPaused + ", mIsSurfaceReady=" + mIsSurfaceReady);
         if (!SDLActivity.mIsPaused && SDLActivity.mIsSurfaceReady) {
             SDLActivity.mIsPaused = true;
             SDLActivity.nativePause();
@@ -318,6 +319,7 @@ public class SDLActivity extends Activity {
      * every time we get one of those events, only if it comes after surfaceDestroyed
      */
     public static void handleResume() {
+        org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.handleResume() - mIsPaused=" + mIsPaused + ", mIsSurfaceReady=" + mIsSurfaceReady + ", mHasFocus=" + mHasFocus);
         if (SDLActivity.mIsPaused && SDLActivity.mIsSurfaceReady && SDLActivity.mHasFocus) {
             SDLActivity.mIsPaused = false;
             SDLActivity.nativeResume();
@@ -1027,6 +1029,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
     // Called when we have a valid drawing surface
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.surfaceCreated()");
         Log.v("SDL", "surfaceCreated()");
         holder.setType(SurfaceHolder.SURFACE_TYPE_GPU);
     }
@@ -1034,6 +1037,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
     // Called when we lose the surface
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
+        org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.surfaceDestroyed()");
         Log.v("SDL", "surfaceDestroyed()");
         // Call this *before* setting mIsSurfaceReady to 'false'
         SDLActivity.handlePause();
@@ -1045,6 +1049,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
     @Override
     public void surfaceChanged(SurfaceHolder holder,
                                int format, int width, int height) {
+        org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.surfaceChanged() format=" + format + ", width=" + width + ", height=" + height);
         Log.v("SDL", "surfaceChanged()");
 
         int sdlFormat = 0x15151002; // SDL_PIXELFORMAT_RGB565 by default
@@ -1128,6 +1133,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
         }
 
         if (skip) {
+           org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.surfaceChanged() skipped - surface not ready");
            Log.v("SDL", "Skip .. Surface is not ready.");
            return;
         }
@@ -1167,6 +1173,8 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
 
         if (SDLActivity.mHasFocus) {
             SDLActivity.handleResume();
+        } else {
+            org.renpy.android.PythonSDLActivity.logLifecycle("SDLActivity.surfaceChanged() completed but not resuming yet (mHasFocus is false)");
         }
     }
 

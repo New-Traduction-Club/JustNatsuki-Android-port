@@ -68,6 +68,21 @@ public class PythonSDLActivity extends SDLActivity {
      */
     public static PythonSDLActivity mActivity = null;
 
+    public static void logLifecycle(String message) {
+        // Log.v("python", "[Lifecycle] " + message);
+        // if (mActivity != null) {
+        //     try {
+        //         java.io.File logFile = new java.io.File(mActivity.getFilesDir(), "jnl_log.log");
+        //         java.io.FileWriter writer = new java.io.FileWriter(logFile, true);
+        //         String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date());
+        //         writer.write("[" + timestamp + "] " + message + "\n");
+        //         writer.close();
+        //     } catch (Exception e) {
+        //         // Ignore
+        //     }
+        // }
+    }
+
     private WindowDecorator mWindowDecorator = null;
 
     public WindowDecorator getWindowDecorator() {
@@ -466,6 +481,7 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         mActivity = this;
+        logLifecycle("onCreate()");
         Log.v("python", "onCreate() started");
         mWindowDecorator = new WindowDecorator(this);
         OrientationPolicy.applyRequestedOrientation(this, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
@@ -591,6 +607,7 @@ public class PythonSDLActivity extends SDLActivity {
 
     @Override
     public void onStop() {
+        logLifecycle("onStop() start");
         Log.v("python", "onStop() start.");
 
         super.onStop();
@@ -857,6 +874,7 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        logLifecycle("onWindowFocusChanged: " + hasFocus);
         Log.v("python", "onWindowFocusChanged: " + hasFocus);
         if (hasFocus) {
             applyImmersiveFullscreen();
@@ -872,6 +890,7 @@ public class PythonSDLActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        logLifecycle("onResume() start - isPaused=" + org.libsdl.app.SDLActivity.mIsPaused + ", isSurfaceReady=" + org.libsdl.app.SDLActivity.mIsSurfaceReady + ", hasFocus=" + org.libsdl.app.SDLActivity.mHasFocus);
         if (mWindowDecorator != null) {
             mWindowDecorator.applyWindowDimensions();
         }
@@ -882,6 +901,23 @@ public class PythonSDLActivity extends SDLActivity {
         // Cancel all scheduled notifications when the user returns to the game
         // Routing is handled by NotificationSchedulerReceiver in the main process.
         NotificationWorker.cancelAllNotifications(this);
+
+        // Force mHasFocus to true in windowed mode for focus bugs on pause/resume
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            org.libsdl.app.SDLActivity.mHasFocus = true;
+            getWindow().getDecorView().requestLayout();
+            getWindow().getDecorView().invalidate();
+            if (mFrameLayout != null) {
+                mFrameLayout.requestLayout();
+                mFrameLayout.invalidate();
+            }
+            if (org.libsdl.app.SDLActivity.mSurface != null) {
+                final View surfaceView = (View) org.libsdl.app.SDLActivity.mSurface;
+                surfaceView.requestLayout();
+                surfaceView.invalidate();
+            }
+            org.libsdl.app.SDLActivity.handleResume();
+        }
 
         long start = System.currentTimeMillis();
         getSharedPreferences("app_prefs", MODE_PRIVATE)
@@ -898,13 +934,25 @@ public class PythonSDLActivity extends SDLActivity {
 
     @Override
     protected void onPause() {
+        logLifecycle("onPause() start");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             if (isInPictureInPictureMode() || mPendingPictureInPictureEnter) {
                 mIsInPictureInPictureMode = true;
             }
         }
 
+        // Bypass SDLActivity's handlePause in windowed mode to keep game rendering
+        boolean wasPiP = mIsInPictureInPictureMode;
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            mIsInPictureInPictureMode = true;
+        }
+
         super.onPause();
+
+        if (mWindowDecorator != null && mWindowDecorator.isWindowedMode()) {
+            mIsInPictureInPictureMode = wasPiP;
+        }
+
         boolean inPictureInPicture =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode();
         if (!inPictureInPicture && !mPendingPictureInPictureEnter) {
