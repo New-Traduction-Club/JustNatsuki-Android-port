@@ -519,6 +519,8 @@ public class PythonSDLActivity extends SDLActivity {
             registerReceiver(mNotificationReceiver, notifFilter);
         }
 
+        DesktopWindowManager.registerReceiver(this);
+
         Log.v("python", "onCreate() finished, mLayout initialized");
     }
 
@@ -574,6 +576,9 @@ public class PythonSDLActivity extends SDLActivity {
         } catch (Exception e) {}
         try {
             unregisterReceiver(mNotificationReceiver);
+        } catch (Exception e) {}
+        try {
+            DesktopWindowManager.unregisterReceiver(this);
         } catch (Exception e) {}
 
         DiscordRpcManager.stop();
@@ -1005,5 +1010,22 @@ public class PythonSDLActivity extends SDLActivity {
             }
         }
         return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
+    public void setTitle(CharSequence title) {
+        super.setTitle(title);
+        if (mWindowDecorator != null && title != null) {
+            mWindowDecorator.setWindowTitle(title.toString());
+        }
+    }
+
+    @Override
+    public void setTitle(int titleId) {
+        super.setTitle(titleId);
+        String title = getString(titleId);
+        if (mWindowDecorator != null && title != null) {
+            mWindowDecorator.setWindowTitle(title);
+        }
     }
 }
