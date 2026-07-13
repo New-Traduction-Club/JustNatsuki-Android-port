@@ -1307,6 +1307,7 @@ class LauncherActivity : BaseActivity() {
             try {
                 // ensureAndroidMasbaseBootstrapScript()
                 removeUtf8CodingDeclarationsInPythonPackages()
+                ensureCaCertBundle()
             } catch (e: IOException) {
                 sanitizeError = e
             }
@@ -1321,6 +1322,21 @@ class LauncherActivity : BaseActivity() {
                 launchActivityWindow(intent, PythonSDLActivity::class.java.name)
             }
         }.start()
+    }
+
+    private fun ensureCaCertBundle() {
+        try {
+            val certFile = File(filesDir, "game/python-packages/certifi/cacert.pem")
+            certFile.parentFile?.mkdirs()
+
+            assets.open("cacert.pem").use { input ->
+                FileOutputStream(certFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LauncherActivity", "Failed to copy cacert.pem: ${e.message}")
+        }
     }
 
     @Throws(IOException::class)

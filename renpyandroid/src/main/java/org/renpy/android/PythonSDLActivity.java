@@ -405,6 +405,8 @@ public class PythonSDLActivity extends SDLActivity {
         nativeSetEnv("ANDROID_ARGUMENT", path.getAbsolutePath());
         nativeSetEnv("ANDROID_PRIVATE", getFilesDir().getAbsolutePath());
         nativeSetEnv("ANDROID_MASBASE", getFilesDir().getAbsolutePath());
+        nativeSetEnv("REQUESTS_CA_BUNDLE", path.getAbsolutePath() + "/game/python-packages/certifi/cacert.pem");
+        nativeSetEnv("SSL_CERT_FILE", path.getAbsolutePath() + "/game/python-packages/certifi/cacert.pem");
         nativeSetEnv("ANDROID_PUBLIC",  externalStorage.getAbsolutePath());
         nativeSetEnv("ANDROID_OLD_PUBLIC", oldExternalStorage.getAbsolutePath());
 
