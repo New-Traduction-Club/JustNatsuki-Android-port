@@ -10,7 +10,7 @@ class AppInfoActivity : GameWindowActivity() {
 
     private lateinit var binding: ActivityAppInfoBinding
 
-    private val COMMIT_HASH = "1df1ecf"
+    private val COMMIT_HASH = "ae38255"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
